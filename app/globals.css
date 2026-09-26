@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from StyleGuide.md. Tailwind's default color, font-size,
+ * radius and shadow scales are cleared so only StyleGuide tokens exist as
+ * utilities (StyleGuide §2: no ad-hoc colors per feature). Spacing keeps
+ * Tailwind's default 4px-based scale (StyleGuide §4).
+ */
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* White text on Primary buttons (§4) */
+  --color-white: #FFFFFF;
+
+  /* Base (§2) */
+  --color-background: #FAFAF9;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E4E1;
+  --color-text-primary: #1C1B1A;
+  --color-text-secondary: #6B6A66;
+
+  /* Primary (§2) */
+  --color-primary: #2A6F5C;
+  --color-primary-hover: #215A4A;
+  --color-primary-subtle: #E8F2EE;
+
+  /* Data status (§2) */
+  --color-success: #3B7A3B;
+  --color-success-subtle: #E9F3E9;
+  --color-warning: #B8790A;
+  --color-warning-subtle: #FCF0DF;
+  --color-danger: #B8332A;
+  --color-danger-subtle: #FBEAE8;
+
+  /* Access status (§4a) */
+  --color-locked-bg: #F1F0EE;
+  --color-locked-text: #8A8883;
+
+  /* Typography (§3) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --text-display: 2rem;
+  --text-display--font-weight: 600;
+  --text-h1: 1.5rem;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.125rem;
+  --text-h2--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--font-weight: 400;
+  --text-label: 0.75rem;
+  --text-label--font-weight: 500;
+  --text-numeric: 0.875rem;
+  --text-numeric--font-weight: 500;
+
+  /* Radius: badges & inputs (sm), cards & buttons (lg) (§4) */
+  --radius-sm: 0.25rem;
+  --radius-lg: 0.5rem;
+
+  /* The single card shadow level (§4) */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+}

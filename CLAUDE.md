@@ -44,7 +44,18 @@ app/api/           → API routes untuk (app)/admin
 
 ## Build & Dev Commands
 
-*(Belum diisi — proyek belum di-scaffold. Update bagian ini begitu `package.json` pertama dibuat, jangan biarkan placeholder ini dianggap benar oleh siapa pun yang membaca file ini sebelum diperbarui.)*
+Package manager: **npm** (`TASKS.md` 0.1). Stack terpasang: Next.js 16.3 (App Router, Turbopack), Tailwind CSS v4, TypeScript, ESLint 9.
+
+- `npm install` — pasang dependency sesuai `package-lock.json`.
+- `npm run dev` — dev server di http://localhost:3000.
+- `npm run build` — build produksi, termasuk type check (kriteria §3 poin 1 di `.claude/rules/workflow.md`).
+- `npm run start` — jalankan hasil build.
+- `npm run lint` — ESLint (`eslint-config-next`: core-web-vitals + typescript).
+
+Catatan konfigurasi:
+- **ESLint tetap di versi 9.** ESLint 10 membuat `eslint-plugin-react` bawaan `eslint-config-next` 16.3.6 crash (`contextOrFilename.getFilename is not a function`), walau peer range-nya tertulis `>=9`.
+- **Token `StyleGuide.md` ada di blok `@theme` di `app/globals.css`** (Tailwind v4 tidak memakai `tailwind.config.js`). Skala warna, ukuran teks, radius, dan shadow bawaan Tailwind sengaja dikosongkan — yang tersedia hanya utility dari token StyleGuide, mis. `bg-primary`, `text-text-secondary`, `text-body`, `text-display`, `rounded-lg`, `rounded-sm`, `shadow-card`. Utility bawaan seperti `bg-red-500` atau `text-sm` tidak ter-generate sama sekali.
+- **`agentRules: false` di `next.config.ts`** mencegah `next dev` menambahkan blok aturan agen Next.js ke `CLAUDE.md` ini (perilaku default Next 16.3 saat mendeteksi agen AI).
 
 ## Definisi "Selesai" untuk Sebuah Fitur
 

@@ -12,7 +12,7 @@ Dibangun **sebelum** fondasi aplikasi (lihat `PRD.md` §5, `Architecture.md` §2
 
 | # | Task | Depends on | Status | Catatan |
 |---|---|---|---|---|
-| 0.1 | Setup project Next.js + Tailwind, route group `(marketing)` | — | Belum Mulai | Scaffold awal — begitu ini jalan, isi "Build & Dev Commands" di `CLAUDE.md`. **Package manager: npm** (bukan pnpm/yarn — keputusan pemilik proyek). Di langkah ini juga: install kedua `SKILL.md` (`add-crud-feature`, `verify-rls-isolation`) ke `.claude/skills/` **sekarang**, jangan ditunda ke fase berikutnya. Buat `.claude/settings.json` dengan permission rule `ask` untuk edit file `lib/supabase-admin.ts` (lihat `workflow.md` §4) — filenya sendiri baru dibuat di 1.8, tapi rule permission disiapkan dari awal supaya tidak lupa belakangan |
+| 0.1 | Setup project Next.js + Tailwind, route group `(marketing)` | — | Selesai | Scaffold awal — begitu ini jalan, isi "Build & Dev Commands" di `CLAUDE.md`. **Package manager: npm** (bukan pnpm/yarn — keputusan pemilik proyek). Di langkah ini juga: install kedua `SKILL.md` (`add-crud-feature`, `verify-rls-isolation`) ke `.claude/skills/` **sekarang**, jangan ditunda ke fase berikutnya. Buat `.claude/settings.json` dengan permission rule `ask` untuk edit file `lib/supabase-admin.ts` (lihat `workflow.md` §4) — filenya sendiri baru dibuat di 1.8, tapi rule permission disiapkan dari awal supaya tidak lupa belakangan |
 | 0.2 | Migration tabel `leads` di Supabase | 0.1 | Belum Mulai | Skema minimal: `id`, `contact`, `source`, `created_at` — lihat `Architecture.md` §4. **RLS wajib aktif sejak baris pertama**: policy hanya `INSERT` untuk role `anon`/`authenticated`, **tidak ada `SELECT`** (anon key publik — tanpa ini data `leads` bisa dibaca siapa pun lewat REST API) — baca isinya lewat Supabase Studio, bukan endpoint aplikasi |
 | 0.3 | Hero section + copy UVP | 0.1 | Belum Mulai | Copy dari `PRD.md` §6 — **masih hipotesis**, boleh diubah saat implementasi |
 | 0.4 | Form CTA "daftar minat" → tulis ke tabel `leads` | 0.2, 0.3 | Belum Mulai | Ini bagian *fake-door test* — pastikan benar-benar berfungsi, bukan dummy. **Wajib** ada checkbox consent eksplisit (tidak boleh pre-checked) sebelum submit — form ini menangkap kontak pribadi (nomor WA/email), tunduk UU PDP (`PRD.md` §8/§9). **Batasan fake-door ini**: hanya menghitung jumlah submit `leads` mentah, **tidak ada** tracking pengunjung/conversion rate (tidak ada analytics di v1) — lihat `PRD.md` §9 |
@@ -59,7 +59,7 @@ Dibangun **sebelum** fondasi aplikasi (lihat `PRD.md` §5, `Architecture.md` §2
 
 | Fase | Total Task | Selesai | % |
 |---|---|---|---|
-| Fase 0 — Landing Page | 6 | 0 | 0% |
+| Fase 0 — Landing Page | 6 | 1 | 17% |
 | Fase 1 (P0) | 18 | 0 | 0% |
 | Fase 2 (P1) | 6 | 0 | 0% |
 
