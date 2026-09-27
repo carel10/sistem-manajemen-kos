@@ -1,6 +1,6 @@
 # StyleGuide — Sistem Manajemen Kos
 
-> Arahan visual untuk landing page dan aplikasi. Untuk spek fitur, lihat `PRD.md`. Untuk arsitektur, lihat `Architecture.md`.
+> Arahan visual untuk landing page dan aplikasi. Untuk spek fitur, lihat `docs/PRD.md`. Untuk arsitektur, lihat `docs/Architecture.md`.
 >
 > **Status:** ini draf pertama berdasar penalaran dari UVP & target user di PRD, **bukan hasil riset visual/kompetitor**. Selera visual itu subjektif — revisi bebas, ini titik awal untuk didiskusikan, bukan keputusan terkunci seperti tech stack.
 
@@ -98,7 +98,7 @@ Hijau tua-kebiruan (teal gelap) dipilih untuk kesan "dipercaya, finansial, stabi
 
 ## 4a. Pricing, Fitur Terkunci & Panel Admin (Ditambahkan — revisi alur langganan)
 
-**Status:** sama seperti §1, ini draf pertama, bukan hasil riset visual — tapi perlu ada sebelum halaman `/pilih-paket` dan fitur terkunci mulai dibangun (`TASKS.md` 1.4, 2.2).
+**Status:** sama seperti §1, ini draf pertama, bukan hasil riset visual — tapi perlu ada sebelum halaman `/pilih-paket` dan fitur terkunci mulai dibangun (`docs/TASKS.md` 1.4, 2.2).
 
 **Token baru — status akses (beda tujuan dari `success`/`warning`/`danger` di §2, yang menandai status data, bukan status akses):**
 
@@ -130,6 +130,6 @@ Alasan pemisahan ini: landing page tugasnya *meyakinkan* orang yang belum kenal 
 
 ## 6. Referensi Terkait
 
-- `PRD.md` — UVP dan target user yang jadi dasar keputusan personality di §1.
-- `Architecture.md` — struktur route `(marketing)` vs `(app)` yang relevan ke §5.
-- `TASKS.md` — roadmap build.
+- `docs/PRD.md` — UVP dan target user yang jadi dasar keputusan personality di §1.
+- `docs/Architecture.md` — struktur route `(marketing)` vs `(app)` yang relevan ke §5.
+- `docs/TASKS.md` — roadmap build.

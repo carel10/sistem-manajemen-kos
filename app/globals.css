@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Design tokens from StyleGuide.md. Tailwind's default color, font-size,
+ * Design tokens from docs/StyleGuide.md. Tailwind's default color, font-size,
  * radius and shadow scales are cleared so only StyleGuide tokens exist as
  * utilities (StyleGuide §2: no ad-hoc colors per feature). Spacing keeps
  * Tailwind's default 4px-based scale (StyleGuide §4).

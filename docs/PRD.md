@@ -1,8 +1,8 @@
 # PRD — Sistem Manajemen Kos
 
-> Nama produk kerja, belum final. Dokumen ini adalah spesifikasi produk (bukan spesifikasi teknis — lihat `Architecture.md` untuk itu).
+> Nama produk kerja, belum final. Dokumen ini adalah spesifikasi produk (bukan spesifikasi teknis — lihat `docs/Architecture.md` untuk itu).
 >
-> **Keputusan (Ditambahkan):** karena nama belum final, landing page (`TASKS.md` 0.3) **boleh** langsung memakai "Sistem Manajemen Kos" apa adanya sebagai nama yang tampil publik untuk sekarang — ini bukan pelanggaran aturan "copy final butuh izin" di `workflow.md` §2, justru karena statusnya memang sudah eksplisit ditandai belum final di sini. Kalau nama final berbeda nanti, itu perubahan konten, bukan perubahan status "final vs belum".
+> **Keputusan (Ditambahkan):** karena nama belum final, landing page (`docs/TASKS.md` 0.3) **boleh** langsung memakai "Sistem Manajemen Kos" apa adanya sebagai nama yang tampil publik untuk sekarang — ini bukan pelanggaran aturan "copy final butuh izin" di `.claude/rules/workflow.md` §2, justru karena statusnya memang sudah eksplisit ditandai belum final di sini. Kalau nama final berbeda nanti, itu perubahan konten, bukan perubahan status "final vs belum".
 
 ## Status dokumen
 
@@ -50,7 +50,7 @@ Dipecah P0 (fondasi + MVP, dibangun lebih dulu) dan P1 (fase lanjutan). Urutan i
 
 | # | Fitur | Catatan |
 |---|---|---|
-| 0 | Landing page | Marketing + *fake-door test* validasi (lihat §9). Tidak bergantung pada auth/skema aplikasi — butuh hanya satu tabel ringan (`leads`) untuk menangkap CTA "daftar minat". Dibangun **sebelum** item 1. **[FIX]** Form CTA menangkap kontak pribadi (nomor WA/email) → wajib ada checkbox consent eksplisit (tidak pre-checked) sebelum submit, sesuai UU PDP — bukan opsional. Consent **juga dicatat** sebagai jejak audit (`leads.consented_at`, diisi saat insert, divalidasi di server bukan cuma client — `Architecture.md` §4), bukan cuma ditegakkan di UI tanpa bukti |
+| 0 | Landing page | Marketing + *fake-door test* validasi (lihat §9). Tidak bergantung pada auth/skema aplikasi — butuh hanya satu tabel ringan (`leads`) untuk menangkap CTA "daftar minat". Dibangun **sebelum** item 1. **[FIX]** Form CTA menangkap kontak pribadi (nomor WA/email) → wajib ada checkbox consent eksplisit (tidak pre-checked) sebelum submit, sesuai UU PDP — bukan opsional. Consent **juga dicatat** sebagai jejak audit (`leads.consented_at`, diisi saat insert, divalidasi di server bukan cuma client — `docs/Architecture.md` §4), bukan cuma ditegakkan di UI tanpa bukti |
 | 1 | Auth + onboarding owner + setup properti/kamar | Fondasi multi-tenant harus ada di sini, bukan menyusul |
 | 2 | **Wajib pilih paket** (Free/Pro) + verifikasi pembayaran manual untuk Pro | Gerbang sebelum dashboard terbuka — **tidak bisa dilewati**, termasuk oleh pengguna yang memilih Free. Detail alur di §5a, matriks fitur di §5b |
 | 3 | Data penghuni, pembayaran, status kamar | CRUD inti — sebagian dibatasi kuota/modul sesuai paket (§5b) |
@@ -120,7 +120,7 @@ Angka kuota (1 properti, 5 kamar) adalah **placeholder awal**, bukan hasil riset
 - Tidak dirancang untuk skala enterprise — solo developer, portofolio + potensi produk riil skala kecil-menengah.
 - **Tidak memakai payment gateway pihak ketiga** (Midtrans/Xendit/dsb) di v1 — verifikasi pembayaran Pro dilakukan manual oleh admin berdasarkan bukti transfer + QRIS statis. Ini pilihan sadar pemilik proyek untuk menghindari dependensi persetujuan pihak ketiga di luar kendali, bukan keterbatasan teknis yang tidak disadari — berlaku terlepas dari ada/tidaknya tenggat, karena proses approval merchant tetap di luar kendali kapan pun itu terjadi.
 - **Tidak ada auto-renewal/auto-expiry langganan** di v1 — status Pro berlaku permanen sejak disetujui sampai diubah manual oleh admin. Simplifikasi MVP, lihat §5a poin 7.
-- **Hosting tetap di Vercel Hobby (gratis)** selama tahap portofolio/demo (`Architecture.md` §1) — fair-use guidelines Vercel membatasi tier ini untuk pemakaian **non-komersial**. Begitu ada pengguna Pro yang benar-benar membayar (bukan lagi demo), **wajib** upgrade ke Vercel Pro ($20/bulan/seat) **sebelum** itu terjadi, bukan setelahnya — ini konstrain bisnis, bukan cuma teknis, jadi dicatat juga di sini bukan hanya di `Architecture.md`.
+- **Hosting tetap di Vercel Hobby (gratis)** selama tahap portofolio/demo (`docs/Architecture.md` §1) — fair-use guidelines Vercel membatasi tier ini untuk pemakaian **non-komersial**. Begitu ada pengguna Pro yang benar-benar membayar (bukan lagi demo), **wajib** upgrade ke Vercel Pro ($20/bulan/seat) **sebelum** itu terjadi, bukan setelahnya — ini konstrain bisnis, bukan cuma teknis, jadi dicatat juga di sini bukan hanya di `docs/Architecture.md`.
 
 ## 9. Open Questions / Risiko yang Belum Diselesaikan
 
@@ -139,6 +139,6 @@ Angka kuota (1 properti, 5 kamar) adalah **placeholder awal**, bukan hasil riset
 
 ## 10. Referensi Terkait
 
-- `Architecture.md` — detail teknis, tech stack, skema data, mekanisme multi-tenancy.
-- `StyleGuide.md` — arahan visual.
-- `TASKS.md` — status pengerjaan per task.
+- `docs/Architecture.md` — detail teknis, tech stack, skema data, mekanisme multi-tenancy.
+- `docs/StyleGuide.md` — arahan visual.
+- `docs/TASKS.md` — status pengerjaan per task.

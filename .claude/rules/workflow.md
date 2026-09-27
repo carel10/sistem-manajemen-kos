@@ -4,19 +4,19 @@
 
 ## 1. Kapan Boleh Jalan Otonom (tanpa tanya dulu)
 
-- Menulis kode fitur yang scope-nya sudah eksplisit ada di `TASKS.md` dengan status `pending`/`in_progress`.
-- Membuat komponen UI yang mengikuti token di `StyleGuide.md`.
-- Menulis migration baru untuk tabel yang **belum ada** (bukan mengubah tabel eksisting), selama menyertakan `tenant_id` + RLS policy sesuai pola di `Architecture.md`.
-- Membuat storage bucket baru yang **belum ada** (misal `bukti-transfer`) beserta policy privasinya, selama mengikuti pola privasi di `Architecture.md` §3a (private + path per-tenant) — bukan mengubah bucket/policy yang sudah aktif.
+- Menulis kode fitur yang scope-nya sudah eksplisit ada di `docs/TASKS.md` dengan status `pending`/`in_progress`.
+- Membuat komponen UI yang mengikuti token di `docs/StyleGuide.md`.
+- Menulis migration baru untuk tabel yang **belum ada** (bukan mengubah tabel eksisting), selama menyertakan `tenant_id` + RLS policy sesuai pola di `docs/Architecture.md`.
+- Membuat storage bucket baru yang **belum ada** (misal `bukti-transfer`) beserta policy privasinya, selama mengikuti pola privasi di `docs/Architecture.md` §3a (private + path per-tenant) — bukan mengubah bucket/policy yang sudah aktif.
 - Menulis test untuk kode yang baru ditulis di sesi yang sama.
 - Memperbaiki bug yang jelas scope-nya (error jelas, root cause jelas) pada kode yang sudah ada.
-- Update status task di `TASKS.md` setelah fitur memenuhi kriteria "selesai" (§3).
+- Update status task di `docs/TASKS.md` setelah fitur memenuhi kriteria "selesai" (§3).
 
 ## 1a. Skill dengan `disable-model-invocation: true` (Ditambahkan — klarifikasi gap nyata, diperluas)
 
 **Berlaku untuk KEDUA skill di proyek ini** — `add-crud-feature` **dan** `verify-rls-isolation` — bukan cuma yang pertama (versi sebelumnya cuma menyebut satu, padahal keduanya punya frontmatter yang sama). Keduanya **hanya** boleh dijalankan lewat slash command eksplisit oleh manusia (`/add-crud-feature <entity>`, `/verify-rls-isolation <tabel>`), **bukan** dipanggil sendiri secara otonom oleh Claude Code, dan **bukan** "disimulasikan": mengikuti langkah-langkah di `SKILL.md`-nya secara manual tanpa benar-benar menjalankan slash command **tidak sama** dengan menginvoke skill tersebut.
 
-**Konsekuensi langsung:** langkah 5 di `add-crud-feature/SKILL.md` ("invoke skill `/verify-rls-isolation`") **tidak berarti** Claude Code memanggilnya sendiri — di titik itu, berhenti dan **minta pemilik proyek** yang menjalankan `/verify-rls-isolation <tabel>` secara langsung. Setiap verifikasi RLS antar-tenant untuk tabel baru wajib lewat jalur ini, bukan diasumsikan "sudah dicek" karena langkah-langkahnya sempat diikuti manual.
+**Konsekuensi langsung:** langkah 5 di `.claude/skills/add-crud-feature/SKILL.md` ("invoke skill `/verify-rls-isolation`") **tidak berarti** Claude Code memanggilnya sendiri — di titik itu, berhenti dan **minta pemilik proyek** yang menjalankan `/verify-rls-isolation <tabel>` secara langsung. Setiap verifikasi RLS antar-tenant untuk tabel baru wajib lewat jalur ini, bukan diasumsikan "sudah dicek" karena langkah-langkahnya sempat diikuti manual.
 
 **Yang TIDAK termasuk pembatasan ini:** verifikasi RLS untuk tabel **non-tenant** seperti `leads`/`plans` (menguji "anon bisa insert tapi tidak bisa select") bukan tenant-isolation, jadi bukan lingkup `verify-rls-isolation` (skill itu spesifik untuk pola `tenant_isolation` antar-tenant) — ini masuk kategori "menulis test untuk kode yang baru ditulis" di §1, boleh dikerjakan langsung lewat SQL ad-hoc tanpa menunggu slash command apa pun.
 
@@ -25,22 +25,22 @@
 - **Mengubah skema tabel yang sudah punya data** (alter column, drop column, ubah tipe) — berisiko kehilangan data.
 - **Mengubah/menghapus RLS policy** yang sudah aktif — risiko kebocoran data antar-tenant kalau salah.
 - **Mengubah/menghapus storage bucket policy** yang sudah aktif (khususnya `bukti-transfer`) — risiko yang sama seperti RLS: sekali bucket privat berubah jadi publik (sengaja atau tidak sengaja), data finansial sensitif (bukti transfer) bisa terekspos.
-- **Menambah dependency/library baru** yang tidak ada di `Architecture.md` §1 — termasuk mengganti Supabase/Next.js dengan alternatif apa pun.
+- **Menambah dependency/library baru** yang tidak ada di `docs/Architecture.md` §1 — termasuk mengganti Supabase/Next.js dengan alternatif apa pun.
 - **Push ke branch `main`/`master`**, atau operasi git destruktif (`reset --hard`, force push).
-- **Mengubah struktur route `(marketing)` vs `(app)`** yang sudah didefinisikan di `Architecture.md` §2.
-- **Menyimpang dari urutan build di `TASKS.md`** — kalau menemukan alasan kuat untuk mengerjakan di luar urutan, ajukan dulu, jangan langsung eksekusi.
-- Kapan pun instruksi di `PRD.md` yang relevan berstatus `[HIPOTESIS]` dan implementasinya butuh keputusan konkret (misal: copy UVP final, prioritas sub-fitur) yang belum dikunci. **Klarifikasi (Ditambahkan — bukan kontradiksi seperti sempat terlihat):** ini berlaku untuk **mengubah** copy yang sudah ditandai `[FIX]` final oleh pemilik proyek. Menulis draf pertama untuk task yang scope-nya memang berstatus `[HIPOTESIS]` (misal `TASKS.md` 0.3 — "copy dari `PRD.md` §6, masih hipotesis, boleh diubah saat implementasi") **bukan** kategori ini — itu memang pekerjaan task tersebut, jalan otonom seperti biasa.
-- **Kode apa pun yang memakai Supabase service role key** (operasi admin lintas-tenant di `Architecture.md` §3a) — ini bypass RLS by design, jadi kesalahan di sini tidak akan tertangkap oleh `verify-rls-isolation` seperti biasa. Tunjukkan kode lengkapnya dulu sebelum dianggap aman, jangan asumsikan dari deskripsi task saja.
-- **Mengubah logic yang mengubah `profiles.subscription_tier` atau `subscription_status`** (approve/reject langganan, atau apa pun yang menyentuh status akses berbayar user) — ini menyentuh status finansial/akses user, bukan sekadar data operasional biasa. Termasuk perubahan pada trigger email notifikasi admin di 1.7 (`TASKS.md`).
+- **Mengubah struktur route `(marketing)` vs `(app)`** yang sudah didefinisikan di `docs/Architecture.md` §2.
+- **Menyimpang dari urutan build di `docs/TASKS.md`** — kalau menemukan alasan kuat untuk mengerjakan di luar urutan, ajukan dulu, jangan langsung eksekusi.
+- Kapan pun instruksi di `docs/PRD.md` yang relevan berstatus `[HIPOTESIS]` dan implementasinya butuh keputusan konkret (misal: copy UVP final, prioritas sub-fitur) yang belum dikunci. **Klarifikasi (Ditambahkan — bukan kontradiksi seperti sempat terlihat):** ini berlaku untuk **mengubah** copy yang sudah ditandai `[FIX]` final oleh pemilik proyek. Menulis draf pertama untuk task yang scope-nya memang berstatus `[HIPOTESIS]` (misal `docs/TASKS.md` 0.3 — "copy dari `docs/PRD.md` §6, masih hipotesis, boleh diubah saat implementasi") **bukan** kategori ini — itu memang pekerjaan task tersebut, jalan otonom seperti biasa.
+- **Kode apa pun yang memakai Supabase service role key** (operasi admin lintas-tenant di `docs/Architecture.md` §3a) — ini bypass RLS by design, jadi kesalahan di sini tidak akan tertangkap oleh `verify-rls-isolation` seperti biasa. Tunjukkan kode lengkapnya dulu sebelum dianggap aman, jangan asumsikan dari deskripsi task saja.
+- **Mengubah logic yang mengubah `profiles.subscription_tier` atau `subscription_status`** (approve/reject langganan, atau apa pun yang menyentuh status akses berbayar user) — ini menyentuh status finansial/akses user, bukan sekadar data operasional biasa. Termasuk perubahan pada trigger email notifikasi admin di 1.7 (`docs/TASKS.md`).
 
 ## 3. Definisi "Selesai" untuk Sebuah Fitur
 
-Sebuah task di `TASKS.md` **hanya** boleh ditandai selesai kalau semua ini benar:
+Sebuah task di `docs/TASKS.md` **hanya** boleh ditandai selesai kalau semua ini benar:
 
 1. Kode berjalan tanpa error (build sukses, tidak ada type error).
-2. Kalau menyentuh tabel milik-tenant: RLS policy ada dan sudah diverifikasi (bukan diasumsikan) — coba akses lintas-tenant harus gagal. **Kalau tabel ini punya FK ke tabel tenant-owned lain** (`Architecture.md` §3 — misal `rooms.property_id`): verifikasi juga bahwa insert/update dengan FK yang menunjuk ke baris tenant lain **gagal**, bukan cuma cek SELECT-level isolation — FK constraint biasa tidak tertahan RLS, celah ini nyata dan pernah luput. Kalau menyentuh Supabase Storage (`bukti-transfer`): policy privasi bucket juga wajib diverifikasi dengan cara yang sama — coba akses path tenant lain harus gagal, bukan diasumsikan aman karena "sudah di-set private".
-3. Sesuai deskripsi fitur di `PRD.md` — bukan versi yang diperluas atau dipersempit tanpa alasan tercatat.
-4. Sesuai token visual di `StyleGuide.md` (warna, tipografi, komponen) — bukan style ad-hoc.
+2. Kalau menyentuh tabel milik-tenant: RLS policy ada dan sudah diverifikasi (bukan diasumsikan) — coba akses lintas-tenant harus gagal. **Kalau tabel ini punya FK ke tabel tenant-owned lain** (`docs/Architecture.md` §3 — misal `rooms.property_id`): verifikasi juga bahwa insert/update dengan FK yang menunjuk ke baris tenant lain **gagal**, bukan cuma cek SELECT-level isolation — FK constraint biasa tidak tertahan RLS, celah ini nyata dan pernah luput. Kalau menyentuh Supabase Storage (`bukti-transfer`): policy privasi bucket juga wajib diverifikasi dengan cara yang sama — coba akses path tenant lain harus gagal, bukan diasumsikan aman karena "sudah di-set private".
+3. Sesuai deskripsi fitur di `docs/PRD.md` — bukan versi yang diperluas atau dipersempit tanpa alasan tercatat.
+4. Sesuai token visual di `docs/StyleGuide.md` (warna, tipografi, komponen) — bukan style ad-hoc.
 5. Tidak ada `TODO`, placeholder kosong, atau data dummy yang tertinggal di kode yang dianggap selesai.
 6. Tidak melanggar penamaan/framing wajib di `CLAUDE.md` (Asset & Maintenance Management, bukan real-time, dst).
 
@@ -70,4 +70,4 @@ Untuk migration yang mengubah tabel eksisting atau RLS policy, tidak ada cara ot
 ## 5. Referensi
 
 - `CLAUDE.md` — aturan non-negotiable ringkas & pointer dokumen.
-- `TASKS.md` — status task, sumber kebenaran urutan build.
+- `docs/TASKS.md` — status task, sumber kebenaran urutan build.

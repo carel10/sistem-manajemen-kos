@@ -1,6 +1,6 @@
 # Architecture — Sistem Manajemen Kos
 
-> Spesifikasi teknis. Untuk spek produk/fitur, lihat `PRD.md`. Untuk arahan visual, lihat `StyleGuide.md`.
+> Spesifikasi teknis. Untuk spek produk/fitur, lihat `docs/PRD.md`. Untuk arahan visual, lihat `docs/StyleGuide.md`.
 
 ## 1. Tech Stack (FIX)
 
@@ -19,7 +19,7 @@
 
 **Keputusan ini final** — hasil diskusi eksplisit, bukan default tanpa pertimbangan. Trade-off yang disadari: porsi "custom backend engineering" yang bisa dipamerkan ke client lebih tipis dibanding Next.js + NestJS/Express terpisah, karena banyak ditangani Supabase. Diterima karena prioritas saat ini adalah kecepatan solo-dev, bukan showcase backend depth.
 
-**Secara eksplisit BUKAN bagian dari tech stack:** payment gateway pihak ketiga (Midtrans, Xendit, atau sejenisnya). Verifikasi pembayaran Pro dilakukan manual oleh admin (lihat §3a) — ini keputusan sadar untuk menghindari dependensi persetujuan pihak ketiga di luar kendali, sesuai PRD.md §8.
+**Secara eksplisit BUKAN bagian dari tech stack:** payment gateway pihak ketiga (Midtrans, Xendit, atau sejenisnya). Verifikasi pembayaran Pro dilakukan manual oleh admin (lihat §3a) — ini keputusan sadar untuk menghindari dependensi persetujuan pihak ketiga di luar kendali, sesuai docs/PRD.md §8.
 
 **Library lain** (validasi schema seperti zod, UI kit, analytics, test framework) **tidak** di-pre-approve di sini — masing-masing diajukan satu per satu sesuai `workflow.md` §2 saat benar-benar dibutuhkan, bukan diputuskan di muka untuk kebutuhan yang belum konkret.
 
@@ -33,27 +33,28 @@
 kos-saas/                          # root repo
 ├── app/                           # lihat subtree lengkap di bawah
 ├── lib/
-│   └── supabase-admin.ts          # SATU-SATUNYA tempat service role key dipakai — lihat §3a, workflow.md §4
+│   └── supabase-admin.ts          # SATU-SATUNYA tempat service role key dipakai — lihat §3a, .claude/rules/workflow.md §4
 ├── supabase/
-│   └── migrations/                # migration SQL, urut sesuai TASKS.md
+│   └── migrations/                # migration SQL, urut sesuai docs/TASKS.md
 ├── public/
 │   └── qris-pro.png                # aset QRIS statis (lihat §3a) — gambar tetap, bukan digenerate
+├── docs/                           # **Dipindah (Diperbaiki, ronde 5)** — dokumen referensi/spek, lihat alasan di bawah
+│   ├── PRD.md
+│   ├── Architecture.md             # dokumen ini
+│   ├── StyleGuide.md
+│   └── TASKS.md
 ├── .claude/
 │   ├── rules/
 │   │   └── workflow.md            # instruksi operasional — dibaca otomatis tiap sesi
 │   └── skills/
 │       ├── add-crud-feature/SKILL.md
 │       └── verify-rls-isolation/SKILL.md
-├── CLAUDE.md                       # dibaca otomatis tiap sesi Claude Code — HARUS di root, case-sensitive
-├── PRD.md
-├── Architecture.md                 # dokumen ini
-├── StyleGuide.md
-├── TASKS.md
+├── CLAUDE.md                       # dibaca otomatis tiap sesi Claude Code — HARUS di root, case-sensitive, TIDAK ikut pindah ke docs/
 ├── package.json
 └── .env.local                      # kunci Supabase (anon + service role), Resend API key — TIDAK di-commit
 ```
 
-**Kenapa dokumen `.md` ini ditaruh flat di root, bukan di folder `docs/`:** semua cross-reference antar-dokumen di seluruh proyek ini (`PRD.md`, `Architecture.md`, dst.) ditulis sebagai path relatif ke root — memindahkannya ke subfolder berarti mengubah setiap referensi di 6+ file sekaligus tanpa manfaat yang jelas. `CLAUDE.md` sendiri **wajib** di root karena itu yang dibaca Claude Code otomatis tiap sesi — dokumen lain ikut ditaruh di tempat yang sama supaya satu pola konsisten, bukan tersebar.
+**Kenapa dokumen referensi sekarang dikelompokkan di `docs/`, dan `CLAUDE.md` tetap sendirian di root (Diperbaiki, ronde 5 — membalik keputusan sebelumnya secara sadar, bukan kelupaan):** versi sebelumnya menaruh keenam dokumen ini flat di root dengan alasan "memindahkannya ke subfolder berarti mengubah setiap referensi tanpa manfaat yang jelas". Setelah proyek berjalan beberapa round dan jumlah dokumen bertambah, manfaatnya jadi konkret: root repo yang isinya cuma `CLAUDE.md` + folder kerja (`app/`, `lib/`, `supabase/`, `docs/`, `.claude/`, `public/`) jauh lebih cepat dipindai dibanding root yang mencampur kode dengan 4 file dokumentasi. **`CLAUDE.md` tetap wajib di root** — ini bukan soal selera rapi, itu perilaku nyata Claude Code: file ini hanya dibaca otomatis tiap sesi kalau posisinya persis di root repo, jadi **tidak ikut pindah** ke `docs/` meski isinya juga dokumen referensi. `.claude/rules/workflow.md` dan kedua `SKILL.md` juga tetap di `.claude/` — itu konvensi direktori Claude Code untuk rules/skill (dipakai slash command `/add-crud-feature`, `/verify-rls-isolation`), bukan dokumen spek biasa, jadi tidak ikut digabung ke `docs/` juga. **Konvensi cross-reference:** semua rujukan antar-dokumen di 8 file ini ditulis sebagai path relatif ke **root repo**, konsisten dari mana pun ditulis (`docs/PRD.md`, bukan `PRD.md` atau `../docs/PRD.md`) — supaya tetap benar tanpa perlu menghitung ulang `../` kalau ada file yang pindah lagi nanti.
 
 **Catatan keamanan eksplisit soal `.env.local` dan `lib/supabase-admin.ts`:** service role key adalah kredensial yang bisa membaca/menulis **seluruh data lintas-tenant**, jadi dua hal ini digabung sebagai satu titik pengawasan — kunci hanya boleh dibaca dari `lib/supabase-admin.ts`, file itu hanya boleh diimpor dari kode yang berjalan di server (route admin, Server Action), dan `.env.local` tidak pernah di-commit (`.gitignore` wajib mengecualikannya sejak commit pertama, bukan ditambahkan belakangan setelah keburu ter-commit).
 
@@ -65,15 +66,17 @@ app/
 │   ├── layout.tsx        # Layout terpisah dari (app), tanpa sidebar/nav aplikasi
 │   └── page.tsx          # Landing page utama
 ├── (auth)/               # **Ditambahkan (FIX)** — login & register, publik. Sebelumnya tidak ada di §2 sama sekali.
-│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke rute yang sesuai — logika presisnya
-│   │                     # sama seperti (onboarding)/layout.tsx di bawah, lihat penjelasan di situ
+│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke rute yang sesuai — pakai logika
+│   │                     # 3-tingkat di "Urutan & logika redirect lengkap" di bawah (Diperbaiki, ronde 4 —
+│   │                     # komentar lama keliru merujuk ke (onboarding)/layout.tsx, yang sejak perbaikan
+│   │                     # redirect-loop HANYA cek sesi dan tidak lagi punya logika 3-tingkat ini)
 │   ├── login/
 │   └── register/
 ├── (onboarding)/         # **Ditambahkan (FIX), diperluas (Diperbaiki — sebelumnya cuma berisi pilih-paket)**
 │   ├── layout.tsx        # Menaungi setup-properti DAN pilih-paket. HANYA cek sesi — TIDAK cek
 │   │                     # subscription_tier, TIDAK cek jumlah properties (Diperbaiki — versi lalu
 │   │                     # sempat menaruh cek properties di sini, itu bikin loop, lihat §3a)
-│   ├── setup-properti/   # **Ditambahkan** — setup properti pertama (`TASKS.md` 1.2), terjadi SEBELUM
+│   ├── setup-properti/   # **Ditambahkan** — setup properti pertama (`docs/TASKS.md` 1.2), terjadi SEBELUM
 │   │                     # pilih paket, jadi tidak mungkin ada di dalam (app) (butuh tier IS NOT NULL)
 │   └── pilih-paket/      # Cek "sudah ada properti?" satu-arah DI DALAM page ini sendiri, bukan di
 │                          # layout (§3a). Lihat §3a untuk alasan kenapa ini tidak boleh ada di dalam (app)
@@ -104,7 +107,7 @@ app/
 **Perbaikan — logika 3-tingkat ini HANYA dipakai di titik transisi MASUK ke area ini, tidak pernah dijalankan ulang di dalamnya:**
 - Dipakai di `(auth)/layout.tsx` (saat sesi sudah aktif dan user membuka `/login`/`/register` lagi) dan di redirect langsung setelah aksi login/register berhasil.
 - **Tidak** dipakai di `(onboarding)/layout.tsx` — layout itu tetap **hanya** cek sesi, titik, tidak pernah membaca `properties` atau `subscription_tier` sama sekali.
-- Kalau urutan "properti dulu, baru pilih paket" (`PRD.md` §5a poin 1) perlu ditegakkan saat user langsung membuka `/pilih-paket` (misal lewat bookmark) tanpa py properti: itu jadi pengecekan **satu-arah** di dalam `/pilih-paket/page.tsx` sendiri (bukan di layout) — kalau belum ada properti, redirect ke `/setup-properti`. Ini aman dari loop karena `/setup-properti/page.tsx` **tidak** punya pengecekan balik apa pun ke `/pilih-paket` — dia hanya render form, dan setelah submit sukses baru secara eksplisit `router.push('/pilih-paket')` (navigasi yang dipicu aksi user, bukan kondisi yang dievaluasi ulang tiap request).
+- Kalau urutan "properti dulu, baru pilih paket" (`docs/PRD.md` §5a poin 1) perlu ditegakkan saat user langsung membuka `/pilih-paket` (misal lewat bookmark) tanpa py properti: itu jadi pengecekan **satu-arah** di dalam `/pilih-paket/page.tsx` sendiri (bukan di layout) — kalau belum ada properti, redirect ke `/setup-properti`. Ini aman dari loop karena `/setup-properti/page.tsx` **tidak** punya pengecekan balik apa pun ke `/pilih-paket` — dia hanya render form, dan setelah submit sukses baru secara eksplisit `router.push('/pilih-paket')` (navigasi yang dipicu aksi user, bukan kondisi yang dievaluasi ulang tiap request).
 
 Query yang dipakai (count `properties` milik tenant + baca `subscription_tier`) taruh di satu helper function server-side (misal `lib/get-onboarding-redirect.ts`) supaya titik-titik pemakaiannya di atas konsisten — tapi helper ini **tidak** dipanggil dari dalam `(onboarding)/layout.tsx`.
 
@@ -136,7 +139,7 @@ create policy "tenant_isolation" on rooms
   using (tenant_id = (select id from profiles where id = auth.uid()));
 ```
 
-Setiap tabel milik-tenant (`properties`, `rooms`, `occupancies`, `payments`, `assets`, `subscription_requests`) mengikuti pola yang sama. **Catatan penamaan:** entity penghuni bernama `occupancies` di ERD §4 dan `TASKS.md` — sebutan "`tenants_penghuni`" yang sempat muncul di draf awal dokumen ini adalah sisa penulisan yang tidak konsisten, bukan nama tabel yang benar. Gunakan `occupancies`.
+Setiap tabel milik-tenant (`properties`, `rooms`, `occupancies`, `payments`, `assets`, `subscription_requests`) mengikuti pola yang sama. **Catatan penamaan:** entity penghuni bernama `occupancies` di ERD §4 dan `docs/TASKS.md` — sebutan "`tenants_penghuni`" yang sempat muncul di draf awal dokumen ini adalah sisa penulisan yang tidak konsisten, bukan nama tabel yang benar. Gunakan `occupancies`.
 
 **Celah tambahan: foreign key lintas-tenant tidak ditahan RLS (Ditambahkan — celah nyata, ditemukan lewat investigasi implementasi, bukan cuma review dokumen):** pengecekan **foreign key constraint** di Postgres berjalan dengan hak akses internal yang **melihat lintas semua baris**, tidak tunduk ke RLS. Akibatnya, tenant A bisa saja `INSERT` ke `rooms` dengan `tenant_id` = miliknya sendiri (lolos `tenant_isolation`) tapi `property_id` menunjuk ke baris `properties` **milik tenant B** — FK constraint biasa tetap menganggap ini valid (barisnya memang ada), padahal tenant A tidak seharusnya bisa mereferensikan properti yang bukan miliknya. Baris nyasar ini tidak terlihat oleh tenant B (RLS SELECT tetap membatasi), tapi bisa menghalangi tenant B menghapus propertinya sendiri (FK menahan delete karena masih direferensikan, dari baris yang tidak pernah B tahu ada).
 
@@ -171,7 +174,7 @@ Kolom-kolom sensitif itu hanya boleh berubah lewat **tiga** jalur (Diperbaiki �
 
 ## 3a. Gerbang Wajib Pilih Paket & Verifikasi Admin (FIX, revisi)
 
-**Alur produk lengkap ada di `PRD.md` §5a — bagian ini fokus ke penegakan teknisnya.**
+**Alur produk lengkap ada di `docs/PRD.md` §5a — bagian ini fokus ke penegakan teknisnya.**
 
 **Penegakan gerbang, dipecah ke dua layout terpisah (Diperbaiki — versi sebelumnya menaruh gerbang dan tujuannya di layout yang sama, menyebabkan redirect loop; lihat §2):**
 
@@ -186,19 +189,23 @@ Kolom-kolom sensitif itu hanya boleh berubah lewat **tiga** jalur (Diperbaiki �
 **Pemilihan paket lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya, lalu diperbaiki LAGI setelah ditemukan 5 celah tambahan lewat investigasi implementasi):** versi pertama menjelaskan alur ini seolah client langsung `UPDATE profiles`/`INSERT subscription_requests` — bertentangan dengan §3. Draf `SECURITY DEFINER` pertama memperbaiki itu, tapi punya 5 celah nyata yang baru ketahuan saat benar-benar diimplementasikan:
 
 1. **Tidak ada `set search_path`** — tanpa ini, function bisa "ditipu" nama tabel dari schema lain (search_path hijacking), pola yang secara eksplisit diperingatkan linter Supabase untuk setiap function `SECURITY DEFINER`.
-2. **`EXECUTE` tidak dibatasi** — function baru di Postgres bisa dipanggil `PUBLIC` secara default, termasuk role `anon`. Untuk `anon`, `auth.uid()` bernilai `NULL` — kalau tidak dicegah eksplisit, `submit_pro_subscription_request` bisa lolos dan menyisipkan baris `tenant_id NULL` dari pengunjung yang belum login sama sekali.
+2. **`EXECUTE` tidak dibatasi** — function baru di Postgres bisa dipanggil `PUBLIC` secara default, termasuk role `anon`. Untuk `anon`, `auth.uid()` bernilai `NULL` — kalau tidak dicegah eksplisit, `submit_pro_subscription_request` bisa lolos dan menyisipkan baris `tenant_id NULL` dari pengunjung yang belum login sama sekali. **[Diperbaiki lagi, ronde 4 — diverifikasi langsung di database lokal, bukan cuma dari dokumentasi]** `revoke execute ... from public` **saja tidak cukup** di Supabase: platform ini memberi role `anon` dan `authenticated` hak eksekusi **langsung** untuk function baru (bukan cuma lewat `public`), jadi revoke wajib menyebut role-nya eksplisit (`revoke execute ... from public, anon`) — tanpa ini, `anon` tetap bisa memanggil function meski sudah di-revoke dari `public`. Pengecekan `auth.uid() is null` di dalam function tetap jadi lapis pertahanan kedua yang menahan dampaknya, tapi klaim "hanya `authenticated` yang bisa memanggil" **tidak benar** tanpa revoke eksplisit ini.
 3. **`p_proof_image_path` diterima mentah dari parameter** — pemanggil bisa mengirim path bukti transfer milik tenant lain (atau path yang tidak ada), dan admin nanti membukanya lewat *signed URL* service role yang menembus proteksi storage. Perbaikan: function membentuk path-nya sendiri dari `auth.uid()` + `p_request_id` + ekstensi tervalidasi, bukan menerima path jadi dari client, dan memverifikasi objek itu benar ada di `storage.objects`.
 4. **Race condition** — cek "masih pending?" lalu insert bukan satu operasi atomik; double-click atau dua tab bisa menghasilkan dua pengajuan pending sekaligus. Perbaikan: kunci baris `profiles` (`select ... for update`) sebelum cek, **plus** unique index parsial di level tabel sebagai jaminan terakhir.
 5. **`select_free_plan()` gagal diam-diam** — kalau `subscription_tier` sudah terisi, `UPDATE` yang mengenai 0 baris tidak memunculkan error, jadi client tidak bisa membedakan sukses dari gagal. Perbaikan: `if not found then raise exception`.
 
-Versi final:
+Versi final — **catatan cakupan task (Ditambahkan, ronde 4 — Claude Code menandai blok ini sempat mencampur dua task berbeda):** unique index di bawah adalah bagian migration tabel `subscription_requests` (`docs/TASKS.md` 1.3), sedangkan kedua function `SECURITY DEFINER` sesudahnya adalah task terpisah (`docs/TASKS.md` 1.3b, depends ke 1.3). Ditulis berurutan di sini karena saling terkait langsung (index adalah pengaman lapis kedua untuk race condition yang lapis pertamanya row lock di dalam function), **bukan** berarti keduanya satu task/migration yang sama:
 
 ```sql
+-- === Bagian migration 1.3 (tabel subscription_requests) ===
 -- unique index parsial: jaminan terakhir di level database terhadap race condition (celah #4)
 create unique index subscription_requests_one_pending_per_tenant
   on public.subscription_requests (tenant_id)
   where status = 'pending';
+```
 
+```sql
+-- === Bagian function SECURITY DEFINER, task 1.3b ===
 -- dipanggil dari /pilih-paket saat user klik "Free"
 create function public.select_free_plan()
 returns void
@@ -227,7 +234,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.select_free_plan() from public;
+revoke execute on function public.select_free_plan() from public, anon; -- [Diperbaiki, ronde 4] "from public" saja tidak mencabut akses anon di Supabase
 grant execute on function public.select_free_plan() to authenticated;
 
 -- dipanggil dari /pilih-paket (submit Pro) atau saat resubmit setelah ditolak
@@ -284,7 +291,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.submit_pro_subscription_request(uuid, text) from public;
+revoke execute on function public.submit_pro_subscription_request(uuid, text) from public, anon; -- [Diperbaiki, ronde 4] "from public" saja tidak mencabut akses anon di Supabase
 grant execute on function public.submit_pro_subscription_request(uuid, text) to authenticated;
 ```
 
@@ -293,9 +300,9 @@ grant execute on function public.submit_pro_subscription_request(uuid, text) to 
 Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) `EXECUTE` dicabut dari `public`/`anon`, hanya `authenticated` yang bisa memanggil, plus pengecekan `auth.uid() is null` sebagai lapis kedua, (c) `search_path` dikunci kosong dan semua tabel schema-qualified, (d) path file dibentuk function sendiri dan divalidasi keberadaannya, bukan dipercaya dari client, (e) race condition ditutup dua lapis (row lock + unique index parsial), (f) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (g) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah.
 
 **Alur data saat submit pengajuan Pro:**
-1. User pilih "Pro" di `/pilih-paket` → tampilkan QRIS statis (aset gambar tetap di `public/qris-pro.png`, bukan digenerate per-transaksi) + nominal yang harus ditransfer (lihat `plans.price_idr`, PRD.md §5b).
+1. User pilih "Pro" di `/pilih-paket` → tampilkan QRIS statis (aset gambar tetap di `public/qris-pro.png`, bukan digenerate per-transaksi) + nominal yang harus ditransfer (lihat `plans.price_idr`, docs/PRD.md §5b).
 2. **Urutan penting (Diperbaiki — versi sebelumnya punya masalah ayam-telur, lalu diperbaiki lagi soal path yang dipercaya mentah dari client):** id pengajuan (`request_id`, sebuah UUID) **dibuat di client/server terlebih dahulu** (`crypto.randomUUID()`) SEBELUM upload, supaya path file di Storage (`{tenant_id}/{request_id}.{ext}`) sudah pasti sebelum baris `subscription_requests` diinsert. Urutannya: (a) generate `request_id`, (b) upload file ke path `{tenant_id}/{request_id}.{ext}` (client memakai `auth.uid()` sendiri sebagai `{tenant_id}` — tidak ada pilihan lain, RLS storage juga menegakkan ini), (c) panggil RPC `submit_pro_subscription_request(request_id, file_ext)` — **cuma ekstensi file yang dikirim, bukan path lengkap** — function membentuk ulang path itu sendiri dan memverifikasi objeknya benar ada sebelum insert. Insert row dan update `profiles` terjadi atomik di dalam function itu, bukan dua panggilan terpisah dari client.
-3. **Boleh disubmit ulang** kalau pengajuan sebelumnya ditolak (`PRD.md` §5a) — function di atas mengizinkan ini (status tidak lagi `pending_verification` setelah ditolak admin), insert row baru (dengan `request_id` baru), riwayat lama tidak dihapus/ditimpa. **Tidak boleh** submit ulang selagi status masih `pending_verification` — dicegah eksplisit oleh function.
+3. **Boleh disubmit ulang** kalau pengajuan sebelumnya ditolak (`docs/PRD.md` §5a) — function di atas mengizinkan ini (status tidak lagi `pending_verification` setelah ditolak admin), insert row baru (dengan `request_id` baru), riwayat lama tidak dihapus/ditimpa. **Tidak boleh** submit ulang selagi status masih `pending_verification` — dicegah eksplisit oleh function.
 4. Trigger (Supabase Edge Function atau API route setelah insert) mengirim email ke admin via Resend — isi ringkas: siapa, paket apa, link untuk membuka bukti transfer (link ini mengarah ke endpoint admin yang membuat *signed URL* sementara lewat service role, bukan URL publik langsung ke bucket privat).
 5. Admin buka `/admin/verifikasi`, review, approve/reject.
 
@@ -309,6 +316,15 @@ Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege p
 
 **Approve/reject harus atomik, bukan dua update terpisah dari kode aplikasi (Ditambahkan):** approve mengubah **dua tabel sekaligus** (`subscription_requests.status` dan `profiles.subscription_tier`/`subscription_status`). Kalau ditulis sebagai dua panggilan `update` terpisah dari API route, ada window di mana satu berhasil dan satu gagal (network error, dsb) — hasilnya data tidak konsisten (misal request sudah `approved` tapi tier belum berubah). Ini harus jadi **satu Postgres function** (`approve_subscription_request(request_id, admin_id)` / `reject_subscription_request(...)`), dipanggil lewat RPC dengan service role, supaya kedua perubahan terjadi dalam satu transaction database — bukan dua langkah terpisah yang bisa gagal di tengah.
 
+**Skenario race/atomicity tambahan untuk 1.9, belum tertutup oleh dua lapis di 1.3b (Ditambahkan, ronde 4 — ditemukan lewat analisis implementasi 1.3b sebelum 1.9 dibangun, jadi dicatat di sini dulu sebagai syarat desain, bukan ditemukan sesudah 1.9 jadi):**
+
+1. **Approve/reject saling menimpa.** Sama seperti celah #4/#5 di `select_free_plan()`/`submit_pro_subscription_request()` di atas, kedua function 1.9 wajib mengunci baris (`select ... for update`) dan memvalidasi `where status = 'pending'` + `if not found then raise exception` — tanpa ini, double-click admin, atau approve dan reject yang hampir bersamaan pada pengajuan yang sama, bisa saling menimpa hasil.
+2. **Urutan penguncian wajib konsisten dengan 1.3b.** Function 1.9 mengunci baris di **dua** tabel (`profiles` dan `subscription_requests`) — urutannya harus sama dengan `submit_pro_subscription_request()` (kunci `profiles` dulu, baru `subscription_requests`). Urutan berbeda antar-function membuka peluang deadlock kalau dua transaction saling menunggu lock yang dipegang satu sama lain di urutan terbalik.
+3. **Retry setelah sukses bukan error bagi user.** Timeout jaringan lalu client mengulang panggilan, atau double-click tombol "Free"/submit/approve, membuat panggilan kedua gagal (baris sudah dalam status yang dicek) walaupun panggilan pertama sudah berhasil — datanya tetap konsisten, tapi UI **wajib** menampilkan pesan "sudah tercatat/sudah diproses" untuk kasus ini, bukan error generik yang membuat user mengira aksinya gagal total.
+4. **Dua sumber kebenaran.** Pengecekan status di 1.3b membaca `profiles.subscription_status`, sementara unique index parsial (1.3) menjaga `subscription_requests.status` — keduanya harus tetap disebut eksplisit sebagai dua kolom terpisah yang bisa drift (misal diedit manual lewat Supabase Studio), bukan diasumsikan selalu sinkron. Mitigasi: function 1.3b/1.9 juga mengecek langsung ke `subscription_requests` (bukan cuma `profiles.subscription_status`) untuk memastikan tidak ada baris `pending` lain, **dan** tambahkan CHECK constraint pada kolom `subscription_requests.status` (`docs/TASKS.md` 1.3, misal `check (status in ('pending','approved','rejected'))`) supaya nilai tidak valid (typo kapitalisasi, dst.) tidak lolos dari predikat unique index parsial.
+5. **Function harus tetap `VOLATILE`.** Default `plpgsql` sudah `VOLATILE` — kalau suatu saat function ini (atau `select_free_plan`/`submit_pro_subscription_request`) ditandai `STABLE` saat refactor, Postgres boleh meng-cache hasil query lintas-statement dalam transaction yang sama, sehingga pengecekan setelah row lock membaca snapshot lama dan lock-nya jadi tidak berguna. Jangan pernah tandai function yang melakukan pola cek-lalu-tulis seperti ini `STABLE`.
+6. **File yatim di bucket (bukan race condition, tapi gap operasional terkait).** Kalau upload ke `bukti-transfer` berhasil tapi RPC `submit_pro_subscription_request` sesudahnya ditolak (misal validasi lain gagal), file itu tertinggal di bucket dan tenant tidak punya cara menghapusnya sendiri (policy bucket cuma `INSERT`/`SELECT`, lihat di bawah). **[RISIKO DITERIMA]** untuk v1 — butuh jalur pembersihan manual oleh admin, bukan fitur delete-by-tenant (itu berlawanan dengan alasan bucket sengaja tidak diberi `UPDATE`/`DELETE` untuk tenant).
+
 **Bootstrapping admin pertama (Ditambahkan — gap yang sebelumnya tidak disebutkan):** tidak ada UI untuk membuat admin pertama — kalau semua akun baru `is_admin default false`, tidak ada cara dari dalam aplikasi untuk mempromosikan siapa pun jadi admin (masalah ayam-telur). Solusinya: **langkah manual satu kali** lewat Supabase Studio (SQL editor), `update profiles set is_admin = true where email = '<email pemilik produk>'`, dilakukan sekali di awal sebelum panel admin pernah diuji. Ini bukan bug yang perlu "diperbaiki" dengan fitur invite-admin — untuk skala solo-developer/portofolio, satu langkah manual sekali di awal itu wajar; kalau nanti butuh banyak admin, baru itu jadi fitur tersendiri (di luar scope v1).
 
 **Kenapa query `where email = ...` ini aman (Dikonfirmasi, bukan celah baru):** ini hanya aman kalau `profiles.email` tidak bisa diubah sendiri oleh user — dan memang tidak bisa, karena column-level privilege di §3 hanya meng-`grant update (full_name)`, `email` tidak termasuk kolom yang boleh ditulis role `authenticated`. Kalau suatu saat kolom lain ikut di-grant, cek ulang apakah `email` masih ikut ter-exclude sebelum mengandalkan query ini lagi.
@@ -317,9 +333,9 @@ Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege p
 
 **Kolom baru di `profiles` (lihat §4):** `is_admin boolean default false`, `subscription_status text` (`'active'` | `'pending_verification'`).
 
-**[HIPOTESIS — belum diputuskan]** Status Pro tidak auto-expire di v1 (lihat PRD.md §5a poin 7) — tidak ada job terjadwal yang mengecek "masa aktif habis". Kalau nanti butuh model berlangganan berulang, ini butuh tabel/kolom tambahan (`valid_until`, job cron pengecekan) yang belum didesain di sini.
+**[HIPOTESIS — belum diputuskan]** Status Pro tidak auto-expire di v1 (lihat docs/PRD.md §5a poin 7) — tidak ada job terjadwal yang mengecek "masa aktif habis". Kalau nanti butuh model berlangganan berulang, ini butuh tabel/kolom tambahan (`valid_until`, job cron pengecekan) yang belum didesain di sini.
 
-**[RISIKO DITERIMA]** Verifikasi manual berbasis screenshot tidak bisa memastikan keaslian transaksi secara otomatis (lihat `PRD.md` §9) — admin mengecek "masuk akal" secara visual, bukan validasi kriptografis terhadap data bank riil. Konsekuensi sadar dari memilih model manual, bukan celah teknis yang perlu ditambal di v1.
+**[RISIKO DITERIMA]** Verifikasi manual berbasis screenshot tidak bisa memastikan keaslian transaksi secara otomatis (lihat `docs/PRD.md` §9) — admin mengecek "masuk akal" secara visual, bukan validasi kriptografis terhadap data bank riil. Konsekuensi sadar dari memilih model manual, bukan celah teknis yang perlu ditambal di v1.
 
 ## 4. Data Model (Overview)
 
@@ -407,13 +423,13 @@ erDiagram
 
 Catatan: `LEADS` sengaja **tidak** punya `tenant_id` — tabel ini milik landing page (pre-auth), bukan bagian skema aplikasi tenant. **Tapi tetap wajib RLS aktif (Diperbaiki — celah nyata di versi sebelumnya):** anon key Supabase bersifat publik (tertanam di kode client), jadi tabel tanpa RLS bisa dibaca/ditulis siapa pun yang tahu anon key. Policy untuk `leads`: **hanya `INSERT` untuk role `anon`/`authenticated`, tidak ada `SELECT`** — Anda membaca isinya lewat Supabase Studio (yang pakai koneksi terpisah, bukan lewat REST API dengan anon key), bukan lewat endpoint publik.
 
-**Kolom `leads` (Ditambahkan — sebelumnya `source` dan consent tidak didefinisikan artinya):** `source` diisi dari query param `?src=` di URL landing page kalau ada (misal `?src=fbgroup-jogja`, `?src=wa-broadcast`) — dipakai untuk tahu channel mana yang benar-benar menghasilkan minat saat link disebar manual (`TASKS.md` 0.6), default `'direct'` kalau tidak ada param. `consented_at` (timestamp, diisi `now()` saat insert) — checkbox consent UU PDP **wajib divalidasi juga di server** sebelum insert (bukan cuma dicek di client), dan waktunya dicatat di kolom ini sebagai bukti audit bahwa consent memang diberikan untuk baris itu, bukan cuma "ditegakkan" tanpa jejak.
+**Kolom `leads` (Ditambahkan — sebelumnya `source` dan consent tidak didefinisikan artinya):** `source` diisi dari query param `?src=` di URL landing page kalau ada (misal `?src=fbgroup-jogja`, `?src=wa-broadcast`) — dipakai untuk tahu channel mana yang benar-benar menghasilkan minat saat link disebar manual (`docs/TASKS.md` 0.6), default `'direct'` kalau tidak ada param. `consented_at` (timestamp, diisi `now()` saat insert) — checkbox consent UU PDP **wajib divalidasi juga di server** sebelum insert (bukan cuma dicek di client), dan waktunya dicatat di kolom ini sebagai bukti audit bahwa consent memang diberikan untuk baris itu, bukan cuma "ditegakkan" tanpa jejak.
 
-Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **hanya** boleh **`SELECT`** pengajuannya sendiri (**Diperbaiki** — bukan "RLS isolasi standar seperti tabel lain", karena itu berarti ada policy `INSERT` juga; di sini sengaja **tidak ada** policy `INSERT`/`UPDATE`/`DELETE` untuk `authenticated` sama sekali — semua penulisan lewat function `SECURITY DEFINER`/service-role di §3a, lihat penjelasan lengkapnya di sana). Kolom ini tetap wajib diverifikasi lewat skill `verify-rls-isolation` seperti biasa (SELECT-only, bukan CRUD penuh). Yang **tidak** memakai RLS "lihat semua" adalah **akses admin** ke tabel ini — itu ditegakkan lewat service role key di server, bukan lewat policy RLS tambahan (lihat §3a untuk alasannya). `rejection_reason` (nullable) diisi saat admin reject, sesuai `PRD.md` §5a. **Unique index parsial** `(tenant_id) where status = 'pending'` (§3a) mencegah dua pengajuan pending sekaligus dari tenant yang sama, sebagai jaminan terakhir di level database terhadap race condition.
+Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **hanya** boleh **`SELECT`** pengajuannya sendiri (**Diperbaiki** — bukan "RLS isolasi standar seperti tabel lain", karena itu berarti ada policy `INSERT` juga; di sini sengaja **tidak ada** policy `INSERT`/`UPDATE`/`DELETE` untuk `authenticated` sama sekali — semua penulisan lewat function `SECURITY DEFINER`/service-role di §3a, lihat penjelasan lengkapnya di sana). Kolom ini tetap wajib diverifikasi lewat skill `verify-rls-isolation` seperti biasa (SELECT-only, bukan CRUD penuh). Yang **tidak** memakai RLS "lihat semua" adalah **akses admin** ke tabel ini — itu ditegakkan lewat service role key di server, bukan lewat policy RLS tambahan (lihat §3a untuk alasannya). `rejection_reason` (nullable) diisi saat admin reject, sesuai `docs/PRD.md` §5a. **Unique index parsial** `(tenant_id) where status = 'pending'` (§3a) mencegah dua pengajuan pending sekaligus dari tenant yang sama, sebagai jaminan terakhir di level database terhadap race condition.
 
 `PLANS` adalah tabel referensi kecil (2 baris: `free`, `pro`) — **RLS tetap aktif** (Diperbaiki, sama alasannya dengan `leads`): policy **hanya `SELECT`** untuk `anon`/`authenticated` (dibaca publik di halaman `/pilih-paket`, termasuk sebelum login kalau harga ditampilkan di landing page), **tidak ada `INSERT`/`UPDATE`/`DELETE`** untuk role itu — harga hanya diubah lewat migration/Supabase Studio, bukan lewat API.
 
-**Arti `plans.is_default` (Diperjelas — sebelumnya ambigu):** kolom ini murni **hint UI** untuk menandai kartu mana yang ditampilkan sebagai pilihan yang disorot/default di halaman `/pilih-paket` (lihat `StyleGuide.md` §4a) — **tidak ada hubungan** dengan `profiles.subscription_tier` yang defaultnya `NULL` (penanda "belum pilih apa pun", lihat §3a). Dua konsep berbeda: satu tentang tampilan pricing page, satu tentang state onboarding user.
+**Arti `plans.is_default` (Diperjelas — sebelumnya ambigu):** kolom ini murni **hint UI** untuk menandai kartu mana yang ditampilkan sebagai pilihan yang disorot/default di halaman `/pilih-paket` (lihat `docs/StyleGuide.md` §4a) — **tidak ada hubungan** dengan `profiles.subscription_tier` yang defaultnya `NULL` (penanda "belum pilih apa pun", lihat §3a). Dua konsep berbeda: satu tentang tampilan pricing page, satu tentang state onboarding user.
 
 ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat implementasi masing-masing fitur — dokumen ini memberi kerangka, bukan DDL final.
 
@@ -427,7 +443,7 @@ ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat imp
 
 ## 6. Feature Gating (Tier Langganan — **P0** sejak revisi ini, bukan P1)
 
-**[FIX, direvisi]** Karena gerbang paket sekarang wajib sebelum dashboard (§3a), gating bukan lagi penyempurnaan P1 — sebagian harus sudah aktif sejak dashboard pertama kali dibuka. Kerangka gating mengikuti matriks fitur di `PRD.md` §5b: **kombinasi** batasan kuota (untuk fitur inti) dan penguncian modul total (untuk fitur P1). Kedua pola harus dicek di level data/API, bukan cuma disembunyikan di UI.
+**[FIX, direvisi]** Karena gerbang paket sekarang wajib sebelum dashboard (§3a), gating bukan lagi penyempurnaan P1 — sebagian harus sudah aktif sejak dashboard pertama kali dibuka. Kerangka gating mengikuti matriks fitur di `docs/PRD.md` §5b: **kombinasi** batasan kuota (untuk fitur inti) dan penguncian modul total (untuk fitur P1). Kedua pola harus dicek di level data/API, bukan cuma disembunyikan di UI.
 
 **Peringatan penting soal cara menulis policy gating (Diperbaiki — bug keamanan nyata di versi sebelumnya):** Postgres menggabungkan beberapa policy **PERMISSIVE** (default) dengan **OR**, bukan AND. Contoh sebelumnya di dokumen ini menulis `pro_only_assets` sebagai policy permissive terpisah dari `tenant_isolation` — akibatnya, kalau digabung, seorang user Pro (tenant mana pun) **lolos policy itu berdasarkan `OR`**, sehingga secara tidak sengaja bisa melihat aset **semua tenant**, bukan cuma miliknya. Ini kebocoran data lintas-tenant, bukan cuma bug kecil. Perbaikannya: policy gating fitur **wajib ditulis sebagai `AS RESTRICTIVE`**, yang digabung dengan **AND** terhadap hasil semua policy permissive (termasuk `tenant_isolation` di §3) — jadi baris hanya terlihat kalau **tenant cocok DAN syarat tier terpenuhi**, bukan salah satu saja.
 
@@ -464,7 +480,7 @@ create policy "pro_only_assets" on assets
   );
 ```
 
-Kalau gating hanya di UI (tombol/menu disembunyikan tapi API tetap terima request), sistem tidak bisa disebut kredibel sebagai SaaS freemium — user teknis akan mengecek ini lewat DevTools/API call langsung. **Setiap policy gating baru yang ditambahkan HARUS dites eksplisit untuk dua arah:** (a) user Pro tenant A tidak bisa melihat data tenant B meski sama-sama Pro, (b) user Free tenant A benar-benar terblokir dari modul Pro-only. Bug OR di atas baru ketahuan karena diperiksa dari sudut (a) — skill `verify-rls-isolation` perlu diperluas mencakup uji silang tier x tenant ini, bukan cuma tenant x tenant. **Catatan:** angka kuota spesifik (1 properti, 5 kamar) adalah placeholder dari `PRD.md` §5b — dikonfigurasi sebagai nilai yang mudah diubah (bukan hardcode berulang di banyak query), karena angka ini eksplisit ditandai `[HIPOTESIS]` dan kemungkinan berubah.
+Kalau gating hanya di UI (tombol/menu disembunyikan tapi API tetap terima request), sistem tidak bisa disebut kredibel sebagai SaaS freemium — user teknis akan mengecek ini lewat DevTools/API call langsung. **Setiap policy gating baru yang ditambahkan HARUS dites eksplisit untuk dua arah:** (a) user Pro tenant A tidak bisa melihat data tenant B meski sama-sama Pro, (b) user Free tenant A benar-benar terblokir dari modul Pro-only. Bug OR di atas baru ketahuan karena diperiksa dari sudut (a) — skill `verify-rls-isolation` perlu diperluas mencakup uji silang tier x tenant ini, bukan cuma tenant x tenant. **Catatan:** angka kuota spesifik (1 properti, 5 kamar) adalah placeholder dari `docs/PRD.md` §5b — dikonfigurasi sebagai nilai yang mudah diubah (bukan hardcode berulang di banyak query), karena angka ini eksplisit ditandai `[HIPOTESIS]` dan kemungkinan berubah.
 
 ## 7. Non-Goals Teknis (selaras PRD §8)
 
@@ -476,6 +492,6 @@ Kalau gating hanya di UI (tombol/menu disembunyikan tapi API tetap terima reques
 
 ## 8. Referensi Terkait
 
-- `PRD.md` — spek produk, fitur, target user.
-- `StyleGuide.md` — arahan visual.
-- `TASKS.md` — roadmap build, dimulai dari Landing Page.
+- `docs/PRD.md` — spek produk, fitur, target user.
+- `docs/StyleGuide.md` — arahan visual.
+- `docs/TASKS.md` — roadmap build, dimulai dari Landing Page.
