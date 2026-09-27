@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { LeadForm } from "./lead-form";
+
 const PRODUCT_NAME = "Sistem Manajemen Kos";
 
 // UVP from docs/PRD.md §6, still [HIPOTESIS]; the hero splits it at the dash.
@@ -23,6 +25,7 @@ export default function LandingPage() {
         Pembayaran, kamar, dan maintenance terpantau otomatis, tanpa perlu cek
         satu-satu setiap hari.
       </p>
+      <LeadForm />
     </section>
   );
 }

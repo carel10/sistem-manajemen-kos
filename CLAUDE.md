@@ -62,6 +62,7 @@ Supabase lokal (Supabase CLI sebagai devDependency, `docs/Architecture.md` §1 �
 - `npx supabase db reset` — buat ulang DB lokal dari nol dan apply ulang semua migration.
 - `npx supabase migration new <nama>` — buat file migration baru.
 - `docker exec -it supabase_db_sistem-manajemen-kos psql -U postgres -d postgres` — psql ke DB lokal (tes RLS ad-hoc).
+- `.env.local` (tidak di-commit, diisi pemilik proyek): `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` (publishable/anon key — **bukan** secret/service role key). Saat ini hanya dibaca Server Action form `leads` di server; prefix `NEXT_PUBLIC_` disiapkan untuk client browser di Fase 1.
 - Di mode agen AI, `supabase status` hanya menampilkan URL, tanpa API key. Uji REST sebagai `anon` bisa langsung ke PostgREST dari dalam jaringan Docker (`http://supabase_rest_sistem-manajemen-kos:3000`, mis. lewat `curl` di container `db`): request tanpa JWT otomatis berjalan sebagai role `anon`.
 
 Catatan konfigurasi:
