@@ -52,6 +52,14 @@ Package manager: **npm** (`TASKS.md` 0.1). Stack terpasang: Next.js 16.3 (App Ro
 - `npm run start` — jalankan hasil build.
 - `npm run lint` — ESLint (`eslint-config-next`: core-web-vitals + typescript).
 
+Supabase lokal (Supabase CLI sebagai devDependency, `Architecture.md` §1 — Docker Desktop harus menyala):
+- `npx supabase start` — jalankan Supabase lokal dan apply semua file di `supabase/migrations/`. Kalau cukup DB + REST saja: tambahkan `-x gotrue,realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor`.
+- `npx supabase stop` — matikan container (data lokal tetap tersimpan).
+- `npx supabase db reset` — buat ulang DB lokal dari nol dan apply ulang semua migration.
+- `npx supabase migration new <nama>` — buat file migration baru.
+- `docker exec -it supabase_db_sistem-manajemen-kos psql -U postgres -d postgres` — psql ke DB lokal (tes RLS ad-hoc).
+- Di mode agen AI, `supabase status` hanya menampilkan URL, tanpa API key. Uji REST sebagai `anon` bisa langsung ke PostgREST dari dalam jaringan Docker (`http://supabase_rest_sistem-manajemen-kos:3000`, mis. lewat `curl` di container `db`): request tanpa JWT otomatis berjalan sebagai role `anon`.
+
 Catatan konfigurasi:
 - **ESLint tetap di versi 9.** ESLint 10 membuat `eslint-plugin-react` bawaan `eslint-config-next` 16.3.6 crash (`contextOrFilename.getFilename is not a function`), walau peer range-nya tertulis `>=9`.
 - **Token `StyleGuide.md` ada di blok `@theme` di `app/globals.css`** (Tailwind v4 tidak memakai `tailwind.config.js`). Skala warna, ukuran teks, radius, dan shadow bawaan Tailwind sengaja dikosongkan — yang tersedia hanya utility dari token StyleGuide, mis. `bg-primary`, `text-text-secondary`, `text-body`, `text-display`, `rounded-lg`, `rounded-sm`, `shadow-card`. Utility bawaan seperti `bg-red-500` atau `text-sm` tidak ter-generate sama sekali.
