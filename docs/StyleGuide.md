@@ -117,7 +117,7 @@ Hijau tua-kebiruan (teal gelap) dipilih untuk kesan "dipercaya, finansial, stabi
 
 ## 5. Landing Page vs Aplikasi — Perbedaan yang Disengaja
 
-Landing page (§2 Architecture.md, route `(marketing)`) boleh sedikit lebih ekspresif dari dashboard aplikasi:
+Landing page (§2 `docs/Architecture.md`, route `(marketing)`) boleh sedikit lebih ekspresif dari dashboard aplikasi:
 
 | Elemen | Landing Page | Aplikasi |
 |---|---|---|

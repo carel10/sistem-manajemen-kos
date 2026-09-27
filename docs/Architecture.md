@@ -21,7 +21,7 @@
 
 **Secara eksplisit BUKAN bagian dari tech stack:** payment gateway pihak ketiga (Midtrans, Xendit, atau sejenisnya). Verifikasi pembayaran Pro dilakukan manual oleh admin (lihat §3a) — ini keputusan sadar untuk menghindari dependensi persetujuan pihak ketiga di luar kendali, sesuai docs/PRD.md §8.
 
-**Library lain** (validasi schema seperti zod, UI kit, analytics, test framework) **tidak** di-pre-approve di sini — masing-masing diajukan satu per satu sesuai `workflow.md` §2 saat benar-benar dibutuhkan, bukan diputuskan di muka untuk kebutuhan yang belum konkret.
+**Library lain** (validasi schema seperti zod, UI kit, analytics, test framework) **tidak** di-pre-approve di sini — masing-masing diajukan satu per satu sesuai `.claude/rules/workflow.md` §2 saat benar-benar dibutuhkan, bukan diputuskan di muka untuk kebutuhan yang belum konkret.
 
 ## 2. Struktur Aplikasi & Landing Page
 
@@ -281,9 +281,21 @@ begin
     raise exception 'Tidak bisa submit pengajuan baru saat status masih pending_verification atau sudah Pro';
   end if;
 
+  -- [Ditambahkan, ronde 5] cek langsung ke subscription_requests, bukan cuma profiles.subscription_status —
+  -- menutup celah "dua sumber kebenaran": kalau profiles pernah diedit manual (Studio) sampai tidak sinkron
+  -- dengan subscription_requests, insert di bawah tetap akan ditolak unique index parsial dengan error mentah
+  -- unique_violation yang membingungkan; pengecekan ini memberi pesan yang jelas sebelum sampai ke situ
+  if exists (
+    select 1 from public.subscription_requests
+    where tenant_id = auth.uid() and status = 'pending'
+  ) then
+    raise exception 'Sudah ada pengajuan Pro yang masih menunggu verifikasi';
+  end if;
+
   insert into public.subscription_requests (id, tenant_id, plan_id, proof_image_path, status, submitted_at)
   values (p_request_id, auth.uid(), (select id from public.plans where code = 'pro'), v_path, 'pending', now());
-  -- unique index parsial di atas juga menolak kalau ada race condition yang lolos dari lock ini
+  -- unique index parsial di atas tetap jadi jaminan terakhir di level database kalau ada race condition
+  -- yang lolos dari kedua lapis pengecekan di atas (row lock + cek langsung ke subscription_requests)
 
   update public.profiles
   set subscription_tier = 'free', subscription_status = 'pending_verification'
@@ -321,7 +333,7 @@ Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege p
 1. **Approve/reject saling menimpa.** Sama seperti celah #4/#5 di `select_free_plan()`/`submit_pro_subscription_request()` di atas, kedua function 1.9 wajib mengunci baris (`select ... for update`) dan memvalidasi `where status = 'pending'` + `if not found then raise exception` — tanpa ini, double-click admin, atau approve dan reject yang hampir bersamaan pada pengajuan yang sama, bisa saling menimpa hasil.
 2. **Urutan penguncian wajib konsisten dengan 1.3b.** Function 1.9 mengunci baris di **dua** tabel (`profiles` dan `subscription_requests`) — urutannya harus sama dengan `submit_pro_subscription_request()` (kunci `profiles` dulu, baru `subscription_requests`). Urutan berbeda antar-function membuka peluang deadlock kalau dua transaction saling menunggu lock yang dipegang satu sama lain di urutan terbalik.
 3. **Retry setelah sukses bukan error bagi user.** Timeout jaringan lalu client mengulang panggilan, atau double-click tombol "Free"/submit/approve, membuat panggilan kedua gagal (baris sudah dalam status yang dicek) walaupun panggilan pertama sudah berhasil — datanya tetap konsisten, tapi UI **wajib** menampilkan pesan "sudah tercatat/sudah diproses" untuk kasus ini, bukan error generik yang membuat user mengira aksinya gagal total.
-4. **Dua sumber kebenaran.** Pengecekan status di 1.3b membaca `profiles.subscription_status`, sementara unique index parsial (1.3) menjaga `subscription_requests.status` — keduanya harus tetap disebut eksplisit sebagai dua kolom terpisah yang bisa drift (misal diedit manual lewat Supabase Studio), bukan diasumsikan selalu sinkron. Mitigasi: function 1.3b/1.9 juga mengecek langsung ke `subscription_requests` (bukan cuma `profiles.subscription_status`) untuk memastikan tidak ada baris `pending` lain, **dan** tambahkan CHECK constraint pada kolom `subscription_requests.status` (`docs/TASKS.md` 1.3, misal `check (status in ('pending','approved','rejected'))`) supaya nilai tidak valid (typo kapitalisasi, dst.) tidak lolos dari predikat unique index parsial.
+4. **Dua sumber kebenaran.** Pengecekan status membaca `profiles.subscription_status`, sementara unique index parsial (1.3) menjaga `subscription_requests.status` — keduanya harus tetap disebut eksplisit sebagai dua kolom terpisah yang bisa drift (misal diedit manual lewat Supabase Studio), bukan diasumsikan selalu sinkron. **Mitigasi (Diterapkan di `submit_pro_subscription_request()` di atas, ronde 5):** function itu sekarang juga mengecek langsung ke `subscription_requests` (bukan cuma `profiles.subscription_status`) sebelum insert, supaya kalau kedua sumber sempat drift, error yang muncul jelas ("sudah ada pengajuan pending") bukan `unique_violation` mentah dari Postgres. Function `approve_subscription_request`/`reject_subscription_request` di 1.9 (belum dibangun) **wajib** menerapkan pola cek-langsung yang sama terhadap `subscription_requests` sebelum mengubah statusnya. Tambahan yang **masih terbuka**: CHECK constraint pada kolom `subscription_requests.status` (`docs/TASKS.md` 1.3, misal `check (status in ('pending','approved','rejected'))`) supaya nilai tidak valid (typo kapitalisasi, dst.) tidak lolos dari predikat unique index parsial — belum ditambahkan ke SQL migration manapun di dokumen ini, masih berupa instruksi task di `docs/TASKS.md` 1.3.
 5. **Function harus tetap `VOLATILE`.** Default `plpgsql` sudah `VOLATILE` — kalau suatu saat function ini (atau `select_free_plan`/`submit_pro_subscription_request`) ditandai `STABLE` saat refactor, Postgres boleh meng-cache hasil query lintas-statement dalam transaction yang sama, sehingga pengecekan setelah row lock membaca snapshot lama dan lock-nya jadi tidak berguna. Jangan pernah tandai function yang melakukan pola cek-lalu-tulis seperti ini `STABLE`.
 6. **File yatim di bucket (bukan race condition, tapi gap operasional terkait).** Kalau upload ke `bukti-transfer` berhasil tapi RPC `submit_pro_subscription_request` sesudahnya ditolak (misal validasi lain gagal), file itu tertinggal di bucket dan tenant tidak punya cara menghapusnya sendiri (policy bucket cuma `INSERT`/`SELECT`, lihat di bawah). **[RISIKO DITERIMA]** untuk v1 — butuh jalur pembersihan manual oleh admin, bukan fitur delete-by-tenant (itu berlawanan dengan alasan bucket sengaja tidak diberi `UPDATE`/`DELETE` untuk tenant).
 
