@@ -30,7 +30,9 @@ Ikuti struktur route group di `Architecture.md` §2 (diperbarui — sebelumnya d
 app/layout.tsx     → root layout bersama, wajib ada di App Router
 app/(marketing)/   → landing page, publik
 app/(auth)/        → login & register, publik
-app/(onboarding)/  → gerbang `/pilih-paket` — sesi wajib, TAPI TIDAK cek subscription_tier (hindari redirect loop)
+app/(onboarding)/  → `/setup-properti` + `/pilih-paket` — layout HANYA cek sesi, TIDAK cek subscription_tier
+                     ATAUPUN jumlah properties (Diperbaiki — cek itu ditaruh di /pilih-paket/page.tsx
+                     sendiri sebagai pengecekan satu-arah, bukan di layout, supaya tidak redirect loop)
 app/(app)/         → aplikasi inti (termasuk kamar/penghuni/pembayaran/aset), di belakang auth + gate pilih paket
 app/admin/         → panel verifikasi langganan, guard is_admin (terpisah dari (app))
 app/api/           → API routes untuk (app)/admin
@@ -43,6 +45,8 @@ app/api/           → API routes untuk (app)/admin
 - Setiap tabel milik-tenant wajib punya kolom `tenant_id` + RLS policy sejak migration pertama dibuat, bukan ditambahkan belakangan.
 
 ## Build & Dev Commands
+
+**[JANGAN TIMPA BAGIAN INI] (Ditambahkan — insiden nyata: bagian ini sempat kembali jadi placeholder karena file disalin mentah dari draf pemilik proyek, bukan digabung):** begitu bagian ini sudah diisi dengan command nyata dari `package.json` (sejak task 0.1), setiap kali menerima `CLAUDE.md` versi baru dari pemilik proyek — **gabungkan** isi bagian ini dari repo yang sudah berjalan ke draf baru, jangan biarkan draf baru (yang belum tentu tahu proyek sudah di-scaffold) menimpanya balik ke placeholder. Draf yang dikirim pemilik proyek tidak selalu tahu progres aktual di repo.
 
 Package manager: **npm** (`TASKS.md` 0.1). Stack terpasang: Next.js 16.3 (App Router, Turbopack), Tailwind CSS v4, TypeScript, ESLint 9.
 
@@ -68,7 +72,7 @@ Catatan konfigurasi:
 ## Catatan Lingkungan Dev Lokal (Ditambahkan)
 
 - **Tailwind v4** — tidak ada `tailwind.config.js` di repo ini, token StyleGuide ada di blok `@theme` dalam `app/globals.css` (`Architecture.md` §1). Jangan cari/buat `tailwind.config.js`.
-- **Laragon + Apache di `C:\laragon\www`:** pastikan vhost Laragon untuk folder proyek ini **tidak** dipakai untuk serve langsung lewat Apache (yang berisiko mengekspos `.env.local` kalau konfigurasi statis-nya menjangkau dotfile). Aplikasi selalu dijalankan lewat `npm run dev` (Next.js dev server di port Node sendiri), bukan diakses lewat Apache yang mengarah langsung ke root folder proyek.
+- **Laragon + Apache di `C:\laragon\www` (Diperbaiki — penjelasan sebelumnya kurang tepat):** risikonya **bukan** cuma dari vhost custom — pengaturan default Laragon sudah otomatis melayani folder proyek ini lewat Apache di `localhost/sistem-manajemen-kos/` begitu Apache dinyalakan, tanpa konfigurasi tambahan apa pun. Mitigasi yang efektif: **jangan nyalakan Apache** sama sekali selama kerja di proyek ini (jalankan lewat `npm run dev` di port Node sendiri), **atau** kalau Apache memang perlu jalan untuk proyek lain, tambahkan aturan yang secara eksplisit memblokir akses ke `.env*` di config Apache/`.htaccess` folder ini.
 
 ## Definisi "Selesai" untuk Sebuah Fitur
 

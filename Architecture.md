@@ -70,10 +70,13 @@ app/
 │   ├── login/
 │   └── register/
 ├── (onboarding)/         # **Ditambahkan (FIX), diperluas (Diperbaiki — sebelumnya cuma berisi pilih-paket)**
-│   ├── layout.tsx        # HANYA cek sesi (wajib login) — TIDAK cek subscription_tier di sini
+│   ├── layout.tsx        # Menaungi setup-properti DAN pilih-paket. HANYA cek sesi — TIDAK cek
+│   │                     # subscription_tier, TIDAK cek jumlah properties (Diperbaiki — versi lalu
+│   │                     # sempat menaruh cek properties di sini, itu bikin loop, lihat §3a)
 │   ├── setup-properti/   # **Ditambahkan** — setup properti pertama (`TASKS.md` 1.2), terjadi SEBELUM
 │   │                     # pilih paket, jadi tidak mungkin ada di dalam (app) (butuh tier IS NOT NULL)
-│   └── pilih-paket/      # Lihat §3a untuk alasan kenapa ini tidak boleh ada di dalam (app)
+│   └── pilih-paket/      # Cek "sudah ada properti?" satu-arah DI DALAM page ini sendiri, bukan di
+│                          # layout (§3a). Lihat §3a untuk alasan kenapa ini tidak boleh ada di dalam (app)
 ├── (app)/                # Aplikasi inti — di belakang auth DAN status paket
 │   ├── layout.tsx        # Cek sesi DAN cek `subscription_tier IS NOT NULL` (lihat §3a) — hanya redirect ke
 │   │                     # /pilih-paket kalau tier belum dipilih; TIDAK ADA route pilih-paket di dalam grup ini
@@ -91,12 +94,19 @@ app/
 
 **Kenapa `/pilih-paket` (dan sekarang `/setup-properti`) punya route group sendiri, bukan di dalam `(app)/` (Diperbaiki — bug nyata di versi sebelumnya):** kalau `/pilih-paket` ada di dalam `(app)/`, dan layout `(app)` me-redirect setiap user bertier `NULL` ke `/pilih-paket`, maka mengunjungi `/pilih-paket` itu sendiri juga memicu layout yang sama — hasilnya **redirect loop tanpa henti**. `(onboarding)` dipisah persis supaya layout-nya hanya mensyaratkan sesi, tidak pernah mensyaratkan tier maupun properti, sehingga tidak pernah me-redirect dirinya sendiri.
 
-**Urutan & logika redirect lengkap (Ditambahkan — sebelumnya "redirect ke rute yang sesuai" di `(auth)/layout.tsx` tidak pernah didefinisikan presisi, celah nyata):** ada 3 kemungkinan state setelah login, dicek berurutan (dipakai baik di `(auth)/layout.tsx` saat sesi sudah aktif, maupun sebagai logika navigasi umum):
+**Urutan & logika redirect lengkap (Ditambahkan, lalu Diperbaiki lagi — versi pertama menyisipkan bug redirect loop baru, lihat di bawah):** ada 3 kemungkinan state setelah login:
 1. Belum punya baris di `properties` sama sekali → `/setup-properti`.
 2. Sudah punya properti, tapi `profiles.subscription_tier IS NULL` → `/pilih-paket`.
 3. Keduanya terpenuhi → `/dashboard` (masuk `(app)`).
 
-Ketiga pengecekan ini query sederhana (count `properties` milik tenant + baca `subscription_tier`), bukan logic kompleks — taruh di satu helper function server-side (misal `lib/get-onboarding-redirect.ts`) supaya `(auth)/layout.tsx` dan `(onboarding)/layout.tsx` memakai sumber logika yang sama, tidak duplikat/berisiko drift.
+**Bug yang sempat masuk ke sini (Diperbaiki — ditemukan lewat investigasi implementasi):** versi sebelumnya menyuruh `(onboarding)/layout.tsx` ikut memakai logika 3-tingkat ini. Itu salah: `(onboarding)/layout.tsx` menaungi **kedua** halaman (`/setup-properti` maupun `/pilih-paket`) — kalau layout yang sama menjalankan pengecekan "belum punya properti → redirect ke `/setup-properti`" pada **setiap** request ke grup ini, maka mengunjungi `/setup-properti` sendiri (saat memang belum punya properti) ikut kena redirect ke `/setup-properti` — loop tanpa henti, kelas bug yang persis sama dengan bug `/pilih-paket` di awal dokumen ini. Efek sampingnya juga menghalangi user Free/pending mengakses `/pilih-paket` untuk upgrade atau submit ulang.
+
+**Perbaikan — logika 3-tingkat ini HANYA dipakai di titik transisi MASUK ke area ini, tidak pernah dijalankan ulang di dalamnya:**
+- Dipakai di `(auth)/layout.tsx` (saat sesi sudah aktif dan user membuka `/login`/`/register` lagi) dan di redirect langsung setelah aksi login/register berhasil.
+- **Tidak** dipakai di `(onboarding)/layout.tsx` — layout itu tetap **hanya** cek sesi, titik, tidak pernah membaca `properties` atau `subscription_tier` sama sekali.
+- Kalau urutan "properti dulu, baru pilih paket" (`PRD.md` §5a poin 1) perlu ditegakkan saat user langsung membuka `/pilih-paket` (misal lewat bookmark) tanpa py properti: itu jadi pengecekan **satu-arah** di dalam `/pilih-paket/page.tsx` sendiri (bukan di layout) — kalau belum ada properti, redirect ke `/setup-properti`. Ini aman dari loop karena `/setup-properti/page.tsx` **tidak** punya pengecekan balik apa pun ke `/pilih-paket` — dia hanya render form, dan setelah submit sukses baru secara eksplisit `router.push('/pilih-paket')` (navigasi yang dipicu aksi user, bukan kondisi yang dievaluasi ulang tiap request).
+
+Query yang dipakai (count `properties` milik tenant + baca `subscription_tier`) taruh di satu helper function server-side (misal `lib/get-onboarding-redirect.ts`) supaya titik-titik pemakaiannya di atas konsisten — tapi helper ini **tidak** dipanggil dari dalam `(onboarding)/layout.tsx`.
 
 **Kenapa `admin/` bukan sub-route di dalam `(app)/`:** admin bukan tenant — perannya melihat data lintas-tenant (semua pengajuan langganan), bukan data miliknya sendiri. Menaruhnya di dalam `(app)/` berisiko admin "tercampur" dengan logic tenant-scoped yang ada di sana. Dipisah sebagai top-level route dengan guard sendiri (`profiles.is_admin`).
 
@@ -157,7 +167,7 @@ revoke update on profiles from authenticated;
 grant update (full_name) on profiles to authenticated; -- hanya kolom yang memang boleh diubah user sendiri
 ```
 
-Kolom-kolom sensitif itu hanya boleh berubah lewat: trigger saat signup (nilai default), atau Postgres function dengan service role (`approve_subscription_request`, dst. — lihat §3a). Ini bukan detail kecil — tanpa ini, seluruh mekanisme gerbang paket & admin di §3a bisa dilewati dengan satu request langsung ke API Supabase.
+Kolom-kolom sensitif itu hanya boleh berubah lewat **tiga** jalur (Diperbaiki — kalimat ini sempat tidak sinkron dengan paragraf "jalur ketiga yang sah" di atas setelah paragraf itu ditambahkan): trigger saat signup (nilai default), Postgres function `SECURITY DEFINER` yang transisinya dikunci eksplisit dan dipanggil user login sendiri (`select_free_plan`, `submit_pro_subscription_request` — lihat §3a), atau Postgres function dengan service role untuk operasi admin lintas-tenant (`approve_subscription_request`, dst. — lihat §3a). Ini bukan detail kecil — tanpa ini, seluruh mekanisme gerbang paket & admin di §3a bisa dilewati dengan satu request langsung ke API Supabase.
 
 ## 3a. Gerbang Wajib Pilih Paket & Verifikasi Admin (FIX, revisi)
 
@@ -165,65 +175,133 @@ Kolom-kolom sensitif itu hanya boleh berubah lewat: trigger saat signup (nilai d
 
 **Penegakan gerbang, dipecah ke dua layout terpisah (Diperbaiki — versi sebelumnya menaruh gerbang dan tujuannya di layout yang sama, menyebabkan redirect loop; lihat §2):**
 
-`(onboarding)/layout.tsx` (isi `/pilih-paket`):
-1. Cek sesi saja. Kalau tidak ada sesi → redirect ke `/login`. **Tidak ada pengecekan `subscription_tier` di sini** — ini justru tempat tier itu ditentukan, jadi tidak boleh mensyaratkan dirinya sendiri.
+`(onboarding)/layout.tsx` (menaungi **kedua** halaman — `/setup-properti` dan `/pilih-paket`):
+1. Cek sesi saja. Kalau tidak ada sesi → redirect ke `/login`. **Tidak ada pengecekan lain di sini sama sekali** — bukan cuma `subscription_tier`, juga **bukan** jumlah `properties` (Diperbaiki — versi sebelumnya sempat menaruh logika 3-tingkat di sini, itu menyebabkan redirect loop persis di halaman yang seharusnya jadi tujuannya sendiri; lihat §2). Urutan "properti dulu, baru pilih paket" ditegakkan di dalam `/pilih-paket/page.tsx` sendiri sebagai pengecekan satu-arah, bukan di layout ini.
 
 `(app)/layout.tsx` (dashboard dan seterusnya):
 1. Cek sesi. Kalau tidak ada sesi → redirect ke `/login`.
 2. Cek `profiles.subscription_tier`. Kalau `NULL` (belum pernah memilih paket) → redirect ke `/pilih-paket` (yang ada di grup `(onboarding)`, bukan di sini — tidak ada loop). Tidak ada cara melewati ini dari sisi client — ini harus dicek server-side di layout/middleware, bukan cuma disembunyikan di UI (pola yang sama dengan prinsip feature gating di §6).
 3. Kalau `subscription_tier` sudah terisi (`'free'` atau `'pro'`) → lanjut ke rute yang diminta, dengan fitur dibatasi sesuai §6.
 
-**Pemilihan paket lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya):** versi sebelumnya menjelaskan alur ini seolah client langsung `UPDATE profiles` dan `INSERT subscription_requests` — ini **bertentangan** dengan aturan kolom sensitif di §3 (UPDATE bebas ke `profiles` sudah di-revoke). Perbaikannya: dua Postgres function `SECURITY DEFINER`, dipanggil user login sendiri lewat RPC (bukan service role, bukan client UPDATE langsung), masing-masing mengunci transisi status yang diperbolehkan:
+**Pemilihan paket lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya, lalu diperbaiki LAGI setelah ditemukan 5 celah tambahan lewat investigasi implementasi):** versi pertama menjelaskan alur ini seolah client langsung `UPDATE profiles`/`INSERT subscription_requests` — bertentangan dengan §3. Draf `SECURITY DEFINER` pertama memperbaiki itu, tapi punya 5 celah nyata yang baru ketahuan saat benar-benar diimplementasikan:
+
+1. **Tidak ada `set search_path`** — tanpa ini, function bisa "ditipu" nama tabel dari schema lain (search_path hijacking), pola yang secara eksplisit diperingatkan linter Supabase untuk setiap function `SECURITY DEFINER`.
+2. **`EXECUTE` tidak dibatasi** — function baru di Postgres bisa dipanggil `PUBLIC` secara default, termasuk role `anon`. Untuk `anon`, `auth.uid()` bernilai `NULL` — kalau tidak dicegah eksplisit, `submit_pro_subscription_request` bisa lolos dan menyisipkan baris `tenant_id NULL` dari pengunjung yang belum login sama sekali.
+3. **`p_proof_image_path` diterima mentah dari parameter** — pemanggil bisa mengirim path bukti transfer milik tenant lain (atau path yang tidak ada), dan admin nanti membukanya lewat *signed URL* service role yang menembus proteksi storage. Perbaikan: function membentuk path-nya sendiri dari `auth.uid()` + `p_request_id` + ekstensi tervalidasi, bukan menerima path jadi dari client, dan memverifikasi objek itu benar ada di `storage.objects`.
+4. **Race condition** — cek "masih pending?" lalu insert bukan satu operasi atomik; double-click atau dua tab bisa menghasilkan dua pengajuan pending sekaligus. Perbaikan: kunci baris `profiles` (`select ... for update`) sebelum cek, **plus** unique index parsial di level tabel sebagai jaminan terakhir.
+5. **`select_free_plan()` gagal diam-diam** — kalau `subscription_tier` sudah terisi, `UPDATE` yang mengenai 0 baris tidak memunculkan error, jadi client tidak bisa membedakan sukses dari gagal. Perbaikan: `if not found then raise exception`.
+
+Versi final:
 
 ```sql
+-- unique index parsial: jaminan terakhir di level database terhadap race condition (celah #4)
+create unique index subscription_requests_one_pending_per_tenant
+  on public.subscription_requests (tenant_id)
+  where status = 'pending';
+
 -- dipanggil dari /pilih-paket saat user klik "Free"
-create function select_free_plan()
+create function public.select_free_plan()
 returns void
+language plpgsql
 security definer
+set search_path = ''  -- celah #1: cegah search_path hijacking, semua tabel di bawah wajib schema-qualified
 as $$
 begin
-  update profiles
+  if auth.uid() is null then  -- celah #2: pertahanan berlapis meski EXECUTE sudah dicabut dari anon
+    raise exception 'Harus login';
+  end if;
+
+  -- (opsional, disepakati) tegakkan urutan "properti dulu" di level DB, bukan cuma UI (PRD §5a poin 1)
+  if not exists (select 1 from public.properties where tenant_id = auth.uid()) then
+    raise exception 'Setup properti pertama dulu sebelum memilih paket';
+  end if;
+
+  update public.profiles
   set subscription_tier = 'free', subscription_status = 'active'
   where id = auth.uid()
     and subscription_tier is null; -- cuma boleh sekali, waktu belum pernah pilih apa pun
+
+  if not found then  -- celah #5: jangan gagal diam-diam
+    raise exception 'Paket sudah pernah dipilih sebelumnya';
+  end if;
 end;
-$$ language plpgsql;
+$$;
+
+revoke execute on function public.select_free_plan() from public;
+grant execute on function public.select_free_plan() to authenticated;
 
 -- dipanggil dari /pilih-paket (submit Pro) atau saat resubmit setelah ditolak
-create function submit_pro_subscription_request(p_request_id uuid, p_proof_image_path text)
+-- p_proof_image_path DIHAPUS dari parameter (celah #3) — path dibentuk function sendiri dari auth.uid()
+create function public.submit_pro_subscription_request(p_request_id uuid, p_file_ext text)
 returns void
+language plpgsql
 security definer
+set search_path = ''
 as $$
+declare
+  v_path text;
 begin
-  -- tolak kalau masih ada pengajuan pending, atau kalau sudah Pro (tidak ada gunanya submit lagi)
+  if auth.uid() is null then
+    raise exception 'Harus login';
+  end if;
+
+  if not exists (select 1 from public.properties where tenant_id = auth.uid()) then
+    raise exception 'Setup properti pertama dulu sebelum memilih paket';
+  end if;
+
+  if p_file_ext not in ('png', 'jpg', 'jpeg') then
+    raise exception 'Format file tidak didukung';
+  end if;
+
+  v_path := auth.uid()::text || '/' || p_request_id::text || '.' || p_file_ext;
+
+  -- celah #3 lanjutan: pastikan file itu benar-benar sudah diupload ke path yang function bentuk sendiri
+  if not exists (
+    select 1 from storage.objects
+    where bucket_id = 'bukti-transfer' and name = v_path
+  ) then
+    raise exception 'File bukti transfer belum ditemukan di path yang diharapkan';
+  end if;
+
+  -- celah #4: kunci baris profil dulu sebelum cek, supaya cek+insert jadi efektif atomik
+  perform 1 from public.profiles where id = auth.uid() for update;
+
   if exists (
-    select 1 from profiles
+    select 1 from public.profiles
     where id = auth.uid()
       and (subscription_status = 'pending_verification' or subscription_tier = 'pro')
   ) then
     raise exception 'Tidak bisa submit pengajuan baru saat status masih pending_verification atau sudah Pro';
   end if;
 
-  insert into subscription_requests (id, tenant_id, plan_id, proof_image_path, status, submitted_at)
-  values (p_request_id, auth.uid(), (select id from plans where code = 'pro'), p_proof_image_path, 'pending', now());
+  insert into public.subscription_requests (id, tenant_id, plan_id, proof_image_path, status, submitted_at)
+  values (p_request_id, auth.uid(), (select id from public.plans where code = 'pro'), v_path, 'pending', now());
+  -- unique index parsial di atas juga menolak kalau ada race condition yang lolos dari lock ini
 
-  update profiles
+  update public.profiles
   set subscription_tier = 'free', subscription_status = 'pending_verification'
   where id = auth.uid();
 end;
-$$ language plpgsql;
+$$;
+
+revoke execute on function public.submit_pro_subscription_request(uuid, text) from public;
+grant execute on function public.submit_pro_subscription_request(uuid, text) to authenticated;
 ```
 
-Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (c) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah (versi sebelumnya menuliskan langkah (c) dan (d) sebagai dua operasi terpisah dari kode aplikasi — itu juga sudah diperbaiki dengan pendekatan ini).
+**Urutan upload jadi berubah sedikit (Diperbaiki — konsekuensi dari celah #3):** client **tetap** generate `request_id` dulu (`crypto.randomUUID()`) dan upload ke path `{tenant_id}/{request_id}.{ext}` **sebelum** memanggil RPC — tapi sekarang path itu harus **persis** sama dengan yang function bentuk sendiri dari `auth.uid()`+`request_id`+`ext` (client tidak lagi mengirim path lengkap, hanya ekstensi file), karena function memverifikasi keberadaan objek di path yang dia hitung sendiri, bukan path yang dipercaya mentah dari parameter.
+
+Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) `EXECUTE` dicabut dari `public`/`anon`, hanya `authenticated` yang bisa memanggil, plus pengecekan `auth.uid() is null` sebagai lapis kedua, (c) `search_path` dikunci kosong dan semua tabel schema-qualified, (d) path file dibentuk function sendiri dan divalidasi keberadaannya, bukan dipercaya dari client, (e) race condition ditutup dua lapis (row lock + unique index parsial), (f) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (g) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah.
 
 **Alur data saat submit pengajuan Pro:**
 1. User pilih "Pro" di `/pilih-paket` → tampilkan QRIS statis (aset gambar tetap di `public/qris-pro.png`, bukan digenerate per-transaksi) + nominal yang harus ditransfer (lihat `plans.price_idr`, PRD.md §5b).
-2. **Urutan penting (Diperbaiki — versi sebelumnya punya masalah ayam-telur):** id pengajuan (`request_id`, sebuah UUID) **dibuat di client/server terlebih dahulu** (`crypto.randomUUID()`) SEBELUM upload, supaya path file di Storage (`{tenant_id}/{request_id}.{ext}`) sudah pasti sebelum baris `subscription_requests` diinsert. Urutannya: (a) generate `request_id`, (b) upload file ke path itu, (c) panggil RPC `submit_pro_subscription_request(request_id, proof_image_path)` — insert row dan update `profiles` terjadi atomik di dalam function itu, bukan dua panggilan terpisah dari client.
+2. **Urutan penting (Diperbaiki — versi sebelumnya punya masalah ayam-telur, lalu diperbaiki lagi soal path yang dipercaya mentah dari client):** id pengajuan (`request_id`, sebuah UUID) **dibuat di client/server terlebih dahulu** (`crypto.randomUUID()`) SEBELUM upload, supaya path file di Storage (`{tenant_id}/{request_id}.{ext}`) sudah pasti sebelum baris `subscription_requests` diinsert. Urutannya: (a) generate `request_id`, (b) upload file ke path `{tenant_id}/{request_id}.{ext}` (client memakai `auth.uid()` sendiri sebagai `{tenant_id}` — tidak ada pilihan lain, RLS storage juga menegakkan ini), (c) panggil RPC `submit_pro_subscription_request(request_id, file_ext)` — **cuma ekstensi file yang dikirim, bukan path lengkap** — function membentuk ulang path itu sendiri dan memverifikasi objeknya benar ada sebelum insert. Insert row dan update `profiles` terjadi atomik di dalam function itu, bukan dua panggilan terpisah dari client.
 3. **Boleh disubmit ulang** kalau pengajuan sebelumnya ditolak (`PRD.md` §5a) — function di atas mengizinkan ini (status tidak lagi `pending_verification` setelah ditolak admin), insert row baru (dengan `request_id` baru), riwayat lama tidak dihapus/ditimpa. **Tidak boleh** submit ulang selagi status masih `pending_verification` — dicegah eksplisit oleh function.
 4. Trigger (Supabase Edge Function atau API route setelah insert) mengirim email ke admin via Resend — isi ringkas: siapa, paket apa, link untuk membuka bukti transfer (link ini mengarah ke endpoint admin yang membuat *signed URL* sementara lewat service role, bukan URL publik langsung ke bucket privat).
 5. Admin buka `/admin/verifikasi`, review, approve/reject.
 
-**RLS untuk `subscription_requests` — bukan isolasi standar biasa (Diperbaiki — celah nyata di versi sebelumnya):** kalimat "RLS isolasi tenant standar" di versi sebelumnya secara tidak sengaja memberi tenant hak `UPDATE`/`DELETE` penuh atas barisnya sendiri lewat pola `tenant_isolation` generik — artinya tenant bisa saja mengisi `status='approved'` sendiri, mengubah `rejection_reason`, atau menghapus riwayat pengajuan yang wajib disimpan sebagai jejak audit. **Perbaikan:** tenant hanya boleh `INSERT` (lewat function di atas, bukan langsung) dan `SELECT` baris miliknya sendiri — **tidak ada** policy `UPDATE`/`DELETE` untuk role `authenticated` di tabel ini sama sekali. Perubahan `status`/`rejection_reason` hanya lewat `approve_subscription_request`/`reject_subscription_request` (service role, §3a di atas).
+**RLS untuk `subscription_requests` — bukan isolasi standar biasa (Diperbaiki dua kali — celah nyata di dua versi sebelumnya):** versi pertama ("RLS isolasi tenant standar") secara tidak sengaja memberi tenant hak `UPDATE`/`DELETE` penuh atas barisnya sendiri — tenant bisa mengisi `status='approved'` sendiri, mengubah `rejection_reason`, atau menghapus riwayat yang wajib disimpan sebagai jejak audit. Versi kedua memperbaiki itu tapi masih menyebut tenant "boleh `INSERT` lewat function" — **itu juga keliru**: `INSERT` di sini bukan soal hak RLS, karena function `SECURITY DEFINER` di atas berjalan dengan privilege **pemilik function** (bukan `authenticated`), dan pemilik function pada umumnya adalah pemilik tabel — role yang **dibebaskan dari RLS secara default** (kecuali `FORCE ROW LEVEL SECURITY` diaktifkan, yang **tidak** dipakai di sini). Artinya `INSERT` dari dalam function tidak butuh (dan tidak boleh diberi) policy RLS `INSERT` untuk `authenticated` sama sekali — kalau policy itu tetap ada, tenant bisa `INSERT` langsung lewat REST API dengan `status='approved'` di kolom manapun yang dia mau, melewati function-nya sama sekali.
+
+**Perbaikan final:** RLS untuk `authenticated` di tabel ini **hanya** `SELECT` baris miliknya sendiri (pola `tenant_isolation` standar §3, tapi **hanya** untuk `SELECT`) — **tidak ada** policy `INSERT`/`UPDATE`/`DELETE` untuk `authenticated` dalam bentuk apa pun. Semua penulisan ke tabel ini terjadi lewat function `SECURITY DEFINER` (submit, jalur user) atau function service-role (`approve_subscription_request`/`reject_subscription_request`, jalur admin) — keduanya bypass RLS karena berjalan sebagai pemilik tabel/service role, bukan karena ada policy yang mengizinkan `authenticated`.
 
 **Privasi bucket `bukti-transfer` — perbaikan cakupan izin (Diperbaiki):** bukan "baca/tulis" bebas seperti disebut sebelumnya — tenant hanya boleh **`INSERT`** (upload object baru di path miliknya) dan **`SELECT`** (lihat kembali bukti yang pernah diupload), **tidak ada** `UPDATE`/`DELETE` untuk tenant terhadap object yang sudah ada. Karena setiap pengajuan baru memakai `request_id` baru (jadi path baru), tidak ada kebutuhan menimpa file lama — bukti transfer yang sudah diupload adalah jejak audit, sama seperti baris `subscription_requests`-nya.
 
@@ -235,7 +313,7 @@ Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege p
 
 **Kenapa query `where email = ...` ini aman (Dikonfirmasi, bukan celah baru):** ini hanya aman kalau `profiles.email` tidak bisa diubah sendiri oleh user — dan memang tidak bisa, karena column-level privilege di §3 hanya meng-`grant update (full_name)`, `email` tidak termasuk kolom yang boleh ditulis role `authenticated`. Kalau suatu saat kolom lain ikut di-grant, cek ulang apakah `email` masih ikut ter-exclude sebelum mengandalkan query ini lagi.
 
-**Privasi bucket `bukti-transfer` (Ditambahkan):** ini bukti transfer bank — **bukan** aset publik seperti foto kamar. Bucket harus **private** (bukan `public: true`), dengan storage policy: tenant hanya boleh baca/tulis object di path miliknya sendiri (`{tenant_id}/...`), dan akses admin lewat service role (yang bypass storage RLS juga, konsisten dengan pola §3a). **Validasi upload** (dicek di client dan ditegakkan di level bucket): tipe file dibatasi `image/png`/`image/jpeg` saja, ukuran maksimum wajar (misal 5MB) — bukan sekadar validasi kosmetik di form, karena upload file adalah permukaan yang mudah disalahgunakan kalau tidak dibatasi.
+**Validasi upload bukti transfer:** tipe file dibatasi `image/png`/`image/jpeg` saja (dan ekstensinya divalidasi ulang di `submit_pro_subscription_request` — lihat function di atas), ukuran maksimum wajar (misal 5MB) — dicek di client dan ditegakkan lagi di level bucket, bukan sekadar validasi kosmetik di form, karena upload file adalah permukaan yang mudah disalahgunakan kalau tidak dibatasi. (Catatan: paragraf "Privasi bucket `bukti-transfer`" yang mendefinisikan izin insert/select vs baca-tulis ada satu kali saja, di atas — versi lama yang menyebut "baca/tulis" bebas sudah dihapus dari sini karena kontradiktif dengan perbaikan itu.)
 
 **Kolom baru di `profiles` (lihat §4):** `is_admin boolean default false`, `subscription_status text` (`'active'` | `'pending_verification'`).
 
@@ -331,7 +409,7 @@ Catatan: `LEADS` sengaja **tidak** punya `tenant_id` — tabel ini milik landing
 
 **Kolom `leads` (Ditambahkan — sebelumnya `source` dan consent tidak didefinisikan artinya):** `source` diisi dari query param `?src=` di URL landing page kalau ada (misal `?src=fbgroup-jogja`, `?src=wa-broadcast`) — dipakai untuk tahu channel mana yang benar-benar menghasilkan minat saat link disebar manual (`TASKS.md` 0.6), default `'direct'` kalau tidak ada param. `consented_at` (timestamp, diisi `now()` saat insert) — checkbox consent UU PDP **wajib divalidasi juga di server** sebelum insert (bukan cuma dicek di client), dan waktunya dicatat di kolom ini sebagai bukti audit bahwa consent memang diberikan untuk baris itu, bukan cuma "ditegakkan" tanpa jejak.
 
-Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **hanya** boleh melihat pengajuannya sendiri (RLS isolasi standar seperti tabel lain — wajib diverifikasi lewat skill `verify-rls-isolation` seperti biasa). Yang **tidak** memakai RLS "lihat semua" adalah **akses admin** ke tabel ini — itu ditegakkan lewat service role key di server, bukan lewat policy RLS tambahan (lihat §3a untuk alasannya). `rejection_reason` (nullable) diisi saat admin reject, sesuai `PRD.md` §5a.
+Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **hanya** boleh **`SELECT`** pengajuannya sendiri (**Diperbaiki** — bukan "RLS isolasi standar seperti tabel lain", karena itu berarti ada policy `INSERT` juga; di sini sengaja **tidak ada** policy `INSERT`/`UPDATE`/`DELETE` untuk `authenticated` sama sekali — semua penulisan lewat function `SECURITY DEFINER`/service-role di §3a, lihat penjelasan lengkapnya di sana). Kolom ini tetap wajib diverifikasi lewat skill `verify-rls-isolation` seperti biasa (SELECT-only, bukan CRUD penuh). Yang **tidak** memakai RLS "lihat semua" adalah **akses admin** ke tabel ini — itu ditegakkan lewat service role key di server, bukan lewat policy RLS tambahan (lihat §3a untuk alasannya). `rejection_reason` (nullable) diisi saat admin reject, sesuai `PRD.md` §5a. **Unique index parsial** `(tenant_id) where status = 'pending'` (§3a) mencegah dua pengajuan pending sekaligus dari tenant yang sama, sebagai jaminan terakhir di level database terhadap race condition.
 
 `PLANS` adalah tabel referensi kecil (2 baris: `free`, `pro`) — **RLS tetap aktif** (Diperbaiki, sama alasannya dengan `leads`): policy **hanya `SELECT`** untuk `anon`/`authenticated` (dibaca publik di halaman `/pilih-paket`, termasuk sebelum login kalau harga ditampilkan di landing page), **tidak ada `INSERT`/`UPDATE`/`DELETE`** untuk role itu — harga hanya diubah lewat migration/Supabase Studio, bukan lewat API.
 
