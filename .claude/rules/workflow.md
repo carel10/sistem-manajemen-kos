@@ -12,9 +12,13 @@
 - Memperbaiki bug yang jelas scope-nya (error jelas, root cause jelas) pada kode yang sudah ada.
 - Update status task di `TASKS.md` setelah fitur memenuhi kriteria "selesai" (§3).
 
-## 1a. Skill dengan `disable-model-invocation: true` (Ditambahkan — klarifikasi gap nyata)
+## 1a. Skill dengan `disable-model-invocation: true` (Ditambahkan — klarifikasi gap nyata, diperluas)
 
-`add-crud-feature` punya frontmatter `disable-model-invocation: true` — ini artinya skill itu **hanya** boleh dijalankan lewat slash command eksplisit oleh manusia (`/add-crud-feature <entity>`), **bukan** dipanggil sendiri secara otonom oleh Claude Code, dan **bukan** "disimulasikan": mengikuti langkah-langkah di `SKILL.md`-nya secara manual tanpa benar-benar menjalankan slash command **tidak sama** dengan menginvoke skill tersebut — kalau ragu apakah langkah yang akan dikerjakan itu masuk lingkup skill ini, berhenti dan minta pemilik proyek menjalankan slash command-nya, jangan meniru urutannya sendiri sebagai pengganti.
+**Berlaku untuk KEDUA skill di proyek ini** — `add-crud-feature` **dan** `verify-rls-isolation` — bukan cuma yang pertama (versi sebelumnya cuma menyebut satu, padahal keduanya punya frontmatter yang sama). Keduanya **hanya** boleh dijalankan lewat slash command eksplisit oleh manusia (`/add-crud-feature <entity>`, `/verify-rls-isolation <tabel>`), **bukan** dipanggil sendiri secara otonom oleh Claude Code, dan **bukan** "disimulasikan": mengikuti langkah-langkah di `SKILL.md`-nya secara manual tanpa benar-benar menjalankan slash command **tidak sama** dengan menginvoke skill tersebut.
+
+**Konsekuensi langsung:** langkah 5 di `add-crud-feature/SKILL.md` ("invoke skill `/verify-rls-isolation`") **tidak berarti** Claude Code memanggilnya sendiri — di titik itu, berhenti dan **minta pemilik proyek** yang menjalankan `/verify-rls-isolation <tabel>` secara langsung. Setiap verifikasi RLS antar-tenant untuk tabel baru wajib lewat jalur ini, bukan diasumsikan "sudah dicek" karena langkah-langkahnya sempat diikuti manual.
+
+**Yang TIDAK termasuk pembatasan ini:** verifikasi RLS untuk tabel **non-tenant** seperti `leads`/`plans` (menguji "anon bisa insert tapi tidak bisa select") bukan tenant-isolation, jadi bukan lingkup `verify-rls-isolation` (skill itu spesifik untuk pola `tenant_isolation` antar-tenant) — ini masuk kategori "menulis test untuk kode yang baru ditulis" di §1, boleh dikerjakan langsung lewat SQL ad-hoc tanpa menunggu slash command apa pun.
 
 ## 2. Kapan Wajib Minta Izin Dulu
 
@@ -25,7 +29,7 @@
 - **Push ke branch `main`/`master`**, atau operasi git destruktif (`reset --hard`, force push).
 - **Mengubah struktur route `(marketing)` vs `(app)`** yang sudah didefinisikan di `Architecture.md` §2.
 - **Menyimpang dari urutan build di `TASKS.md`** — kalau menemukan alasan kuat untuk mengerjakan di luar urutan, ajukan dulu, jangan langsung eksekusi.
-- Kapan pun instruksi di `PRD.md` yang relevan berstatus `[HIPOTESIS]` dan implementasinya butuh keputusan konkret (misal: copy UVP final, prioritas sub-fitur) yang belum dikunci.
+- Kapan pun instruksi di `PRD.md` yang relevan berstatus `[HIPOTESIS]` dan implementasinya butuh keputusan konkret (misal: copy UVP final, prioritas sub-fitur) yang belum dikunci. **Klarifikasi (Ditambahkan — bukan kontradiksi seperti sempat terlihat):** ini berlaku untuk **mengubah** copy yang sudah ditandai `[FIX]` final oleh pemilik proyek. Menulis draf pertama untuk task yang scope-nya memang berstatus `[HIPOTESIS]` (misal `TASKS.md` 0.3 — "copy dari `PRD.md` §6, masih hipotesis, boleh diubah saat implementasi") **bukan** kategori ini — itu memang pekerjaan task tersebut, jalan otonom seperti biasa.
 - **Kode apa pun yang memakai Supabase service role key** (operasi admin lintas-tenant di `Architecture.md` §3a) — ini bypass RLS by design, jadi kesalahan di sini tidak akan tertangkap oleh `verify-rls-isolation` seperti biasa. Tunjukkan kode lengkapnya dulu sebelum dianggap aman, jangan asumsikan dari deskripsi task saja.
 - **Mengubah logic yang mengubah `profiles.subscription_tier` atau `subscription_status`** (approve/reject langganan, atau apa pun yang menyentuh status akses berbayar user) — ini menyentuh status finansial/akses user, bukan sekadar data operasional biasa. Termasuk perubahan pada trigger email notifikasi admin di 1.7 (`TASKS.md`).
 
@@ -34,7 +38,7 @@
 Sebuah task di `TASKS.md` **hanya** boleh ditandai selesai kalau semua ini benar:
 
 1. Kode berjalan tanpa error (build sukses, tidak ada type error).
-2. Kalau menyentuh tabel milik-tenant: RLS policy ada dan sudah diverifikasi (bukan diasumsikan) — coba akses lintas-tenant harus gagal. Kalau menyentuh Supabase Storage (`bukti-transfer`): policy privasi bucket juga wajib diverifikasi dengan cara yang sama — coba akses path tenant lain harus gagal, bukan diasumsikan aman karena "sudah di-set private".
+2. Kalau menyentuh tabel milik-tenant: RLS policy ada dan sudah diverifikasi (bukan diasumsikan) — coba akses lintas-tenant harus gagal. **Kalau tabel ini punya FK ke tabel tenant-owned lain** (`Architecture.md` §3 — misal `rooms.property_id`): verifikasi juga bahwa insert/update dengan FK yang menunjuk ke baris tenant lain **gagal**, bukan cuma cek SELECT-level isolation — FK constraint biasa tidak tertahan RLS, celah ini nyata dan pernah luput. Kalau menyentuh Supabase Storage (`bukti-transfer`): policy privasi bucket juga wajib diverifikasi dengan cara yang sama — coba akses path tenant lain harus gagal, bukan diasumsikan aman karena "sudah di-set private".
 3. Sesuai deskripsi fitur di `PRD.md` — bukan versi yang diperluas atau dipersempit tanpa alasan tercatat.
 4. Sesuai token visual di `StyleGuide.md` (warna, tipografi, komponen) — bukan style ad-hoc.
 5. Tidak ada `TODO`, placeholder kosong, atau data dummy yang tertinggal di kode yang dianggap selesai.
@@ -58,6 +62,8 @@ Bagian di §2 yang risikonya tinggi (kehilangan data, kebocoran tenant, push des
 ```
 
 Untuk migration yang mengubah tabel eksisting atau RLS policy, tidak ada cara otomatis mem-block lewat permission rule sederhana (perlu dicek isi file migration-nya) — jadi bagian ini tetap bergantung pada disiplin mengikuti §2 secara manual, atau ditambah hook custom kalau proyek berkembang lebih jauh.
+
+**Update status (Diperbaiki — catatan ini sempat usang):** `.claude/settings.json` **sudah dibuat** sejak task 0.1 (bukan lagi "belum dibuat" seperti tertulis sebelumnya di sini), berisi rule `ask` untuk `git push`/`git reset --hard` (termasuk varian `PowerShell(...)` karena tool PowerShell tersedia di lingkungan Windows ini) dan untuk edit `lib/supabase-admin.ts`. **Batasan yang perlu diketahui:** rule berbasis pattern ini tidak menangkap semua variasi command (misal `git -C . push`), dan tidak menangkap edit ke `lib/supabase-admin.ts` lewat perintah shell langsung (`sed`, `cat >`, dst.) — tetap bergantung pada disiplin mengikuti §2 secara manual untuk kasus itu, sama seperti migration di atas.
 
 **Tambahan (revisi alur langganan):** kode yang memakai service role key sebaiknya diisolasi ke satu file/folder yang jelas (misal `lib/supabase-admin.ts`), supaya kalau proyek berkembang, permission rule bisa ditambahkan untuk minta izin setiap kali file itu diedit — sama seperti migration, ini belum bisa di-block otomatis hari ini, tapi mengisolasi lokasinya membuat pengawasan manual jauh lebih mudah daripada kalau service role key dipakai tersebar di banyak file.
 

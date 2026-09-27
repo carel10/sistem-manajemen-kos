@@ -13,7 +13,7 @@ Dokumen detail ada di file terpisah — baca sesuai kebutuhan tugas, jangan asum
 
 - **Tech stack fix:** Next.js (App Router) + Tailwind CSS + Supabase (Postgres, Auth, Storage) + Resend (email notifikasi admin, lihat `Architecture.md` §1). Jangan ganti/tambah framework backend/payment gateway lain tanpa izin eksplisit.
 - **Multi-tenancy via Postgres RLS**, kolom `tenant_id` di tiap tabel **milik-tenant** (bukan di `profiles` sendiri — `profiles.id` adalah tenant identifier-nya, lihat `Architecture.md` §3/§4). **Jangan** pakai filter manual `WHERE tenant_id = ?` di application layer sebagai pengganti RLS.
-- **Kolom sensitif di `profiles`** (`subscription_tier`, `subscription_status`, `is_admin`) **tidak boleh** bisa ditulis lewat UPDATE biasa oleh user sendiri — ditegakkan lewat column-level privilege Postgres (`revoke`/`grant` per kolom), bukan cuma row-level RLS (`Architecture.md` §3). Row policy yang mengizinkan "update baris sendiri" tidak otomatis membatasi kolom mana yang boleh diubah.
+- **Kolom sensitif di `profiles`** (`subscription_tier`, `subscription_status`, `is_admin`) **tidak boleh** bisa ditulis lewat UPDATE biasa oleh user sendiri — ditegakkan lewat column-level privilege Postgres (`revoke`/`grant` per kolom), bukan cuma row-level RLS (`Architecture.md` §3). Row policy yang mengizinkan "update baris sendiri" tidak otomatis membatasi kolom mana yang boleh diubah. Kolom itu **hanya** boleh berubah lewat: trigger signup, Postgres function `SECURITY DEFINER` yang transisinya dikunci eksplisit (dipakai user login sendiri untuk pilih paket — `Architecture.md` §3a), atau function service-role admin (approve/reject). **Bukan** UPDATE bebas dari client, dalam bentuk apa pun.
 - **Landing page duluan.** Route `(marketing)` dibangun sebelum route `(app)`. Landing page tidak butuh auth/skema tenant — hanya tabel `leads`.
 - **Wajib pilih paket sebelum dashboard terbuka.** `(app)/layout.tsx` harus redirect ke `/pilih-paket` kalau `profiles.subscription_tier IS NULL` — berlaku untuk **semua** user, termasuk yang akhirnya memilih Free. Lihat `Architecture.md` §3a, `PRD.md` §5a.
 - **Verifikasi pembayaran Pro = manual, bukan payment gateway.** QRIS statis + upload bukti transfer + approval admin. **Jangan** integrasikan Midtrans/Xendit/payment gateway pihak ketiga mana pun tanpa izin eksplisit — ini keputusan sadar, bukan kelupaan.
@@ -56,6 +56,11 @@ Catatan konfigurasi:
 - **ESLint tetap di versi 9.** ESLint 10 membuat `eslint-plugin-react` bawaan `eslint-config-next` 16.3.6 crash (`contextOrFilename.getFilename is not a function`), walau peer range-nya tertulis `>=9`.
 - **Token `StyleGuide.md` ada di blok `@theme` di `app/globals.css`** (Tailwind v4 tidak memakai `tailwind.config.js`). Skala warna, ukuran teks, radius, dan shadow bawaan Tailwind sengaja dikosongkan — yang tersedia hanya utility dari token StyleGuide, mis. `bg-primary`, `text-text-secondary`, `text-body`, `text-display`, `rounded-lg`, `rounded-sm`, `shadow-card`. Utility bawaan seperti `bg-red-500` atau `text-sm` tidak ter-generate sama sekali.
 - **`agentRules: false` di `next.config.ts`** mencegah `next dev` menambahkan blok aturan agen Next.js ke `CLAUDE.md` ini (perilaku default Next 16.3 saat mendeteksi agen AI).
+
+## Catatan Lingkungan Dev Lokal (Ditambahkan)
+
+- **Tailwind v4** — tidak ada `tailwind.config.js` di repo ini, token StyleGuide ada di blok `@theme` dalam `app/globals.css` (`Architecture.md` §1). Jangan cari/buat `tailwind.config.js`.
+- **Laragon + Apache di `C:\laragon\www`:** pastikan vhost Laragon untuk folder proyek ini **tidak** dipakai untuk serve langsung lewat Apache (yang berisiko mengekspos `.env.local` kalau konfigurasi statis-nya menjangkau dotfile). Aplikasi selalu dijalankan lewat `npm run dev` (Next.js dev server di port Node sendiri), bukan diakses lewat Apache yang mengarah langsung ke root folder proyek.
 
 ## Definisi "Selesai" untuk Sebuah Fitur
 

@@ -1,6 +1,8 @@
 # PRD — Sistem Manajemen Kos
 
 > Nama produk kerja, belum final. Dokumen ini adalah spesifikasi produk (bukan spesifikasi teknis — lihat `Architecture.md` untuk itu).
+>
+> **Keputusan (Ditambahkan):** karena nama belum final, landing page (`TASKS.md` 0.3) **boleh** langsung memakai "Sistem Manajemen Kos" apa adanya sebagai nama yang tampil publik untuk sekarang — ini bukan pelanggaran aturan "copy final butuh izin" di `workflow.md` §2, justru karena statusnya memang sudah eksplisit ditandai belum final di sini. Kalau nama final berbeda nanti, itu perubahan konten, bukan perubahan status "final vs belum".
 
 ## Status dokumen
 
@@ -48,7 +50,7 @@ Dipecah P0 (fondasi + MVP, dibangun lebih dulu) dan P1 (fase lanjutan). Urutan i
 
 | # | Fitur | Catatan |
 |---|---|---|
-| 0 | Landing page | Marketing + *fake-door test* validasi (lihat §9). Tidak bergantung pada auth/skema aplikasi — butuh hanya satu tabel ringan (`leads`) untuk menangkap CTA "daftar minat". Dibangun **sebelum** item 1. **[FIX]** Form CTA menangkap kontak pribadi (nomor WA/email) → wajib ada checkbox consent eksplisit (tidak pre-checked) sebelum submit, sesuai UU PDP — bukan opsional |
+| 0 | Landing page | Marketing + *fake-door test* validasi (lihat §9). Tidak bergantung pada auth/skema aplikasi — butuh hanya satu tabel ringan (`leads`) untuk menangkap CTA "daftar minat". Dibangun **sebelum** item 1. **[FIX]** Form CTA menangkap kontak pribadi (nomor WA/email) → wajib ada checkbox consent eksplisit (tidak pre-checked) sebelum submit, sesuai UU PDP — bukan opsional. Consent **juga dicatat** sebagai jejak audit (`leads.consented_at`, diisi saat insert, divalidasi di server bukan cuma client — `Architecture.md` §4), bukan cuma ditegakkan di UI tanpa bukti |
 | 1 | Auth + onboarding owner + setup properti/kamar | Fondasi multi-tenant harus ada di sini, bukan menyusul |
 | 2 | **Wajib pilih paket** (Free/Pro) + verifikasi pembayaran manual untuk Pro | Gerbang sebelum dashboard terbuka — **tidak bisa dilewati**, termasuk oleh pengguna yang memilih Free. Detail alur di §5a, matriks fitur di §5b |
 | 3 | Data penghuni, pembayaran, status kamar | CRUD inti — sebagian dibatasi kuota/modul sesuai paket (§5b) |
@@ -90,7 +92,7 @@ Dipecah P0 (fondasi + MVP, dibangun lebih dulu) dan P1 (fase lanjutan). Urutan i
 
 Angka kuota (1 properti, 5 kamar) adalah **placeholder awal**, bukan hasil riset harga/kompetitor — perlu dikonfirmasi ulang, idealnya bersamaan dengan validasi primer di §9. Yang **FIX** adalah kerangkanya: kombinasi kuota (untuk fitur inti P0) + modul terkunci total (untuk fitur P1), bukan salah satu saja.
 
-**[HIPOTESIS]** Harga paket Pro: **Rp 49.000/bulan** (`plans.price_idr`) — ini **placeholder mentah**, bukan hasil riset willingness-to-pay atau perbandingan kompetitor, sekadar angka kerja supaya QRIS + form nominal (§5a poin 3) punya nilai konkret untuk dibangun. Wajib direview ulang bersamaan dengan validasi primer di §9 — jangan dianggap harga final hanya karena sudah tertulis di skema.
+**[HIPOTESIS]** Harga paket Pro: **Rp 49.000 (sekali bayar, bukan "/bulan")** (`plans.price_idr`) — ini **placeholder mentah**, bukan hasil riset willingness-to-pay atau perbandingan kompetitor, sekadar angka kerja supaya QRIS + form nominal (§5a poin 3) punya nilai konkret untuk dibangun. **Framing "sekali bayar" ini disengaja, bukan salah ketik (Diperbaiki — versi sebelumnya menulis "/bulan" yang kontradiktif):** status Pro di v1 permanen tanpa auto-expiry (§5a poin 7, §8) — tidak ada mekanisme billing berulang sama sekali, jadi menyebutnya "per bulan" menyiratkan langganan berulang yang tidak benar-benar ada. Kalau nanti model recurring (bulanan, re-approve tiap periode) didesain ulang sebagai keputusan bisnis (lihat §9), barulah framing harga berubah mengikuti model itu — bukan sekarang. Wajib direview ulang bersamaan dengan validasi primer di §9 — jangan dianggap harga final hanya karena sudah tertulis di skema.
 
 ## 6. Unique Value Proposition (Draf)
 

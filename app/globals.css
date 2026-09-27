@@ -32,6 +32,8 @@
   --color-success-subtle: #E9F3E9;
   --color-warning: #B8790A;
   --color-warning-subtle: #FCF0DF;
+  /* Text on warning-subtle badges: `warning` there fails WCAG AA (§2) */
+  --color-warning-text-strong: #8A5A08;
   --color-danger: #B8332A;
   --color-danger-subtle: #FBEAE8;
 

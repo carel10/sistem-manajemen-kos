@@ -43,12 +43,21 @@ Hijau tua-kebiruan (teal gelap) dipilih untuk kesan "dipercaya, finansial, stabi
 |---|---|---|
 | `success` | `#3B7A3B` | Lunas, aktif, kondisi baik |
 | `success-subtle` | `#E9F3E9` | Background badge status sukses (pucat, dipasangkan dengan teks `success`) |
-| `warning` | `#B8790A` | Jatuh tempo mendekat, perlu-cek |
-| `warning-subtle` | `#FCF0DF` | Background badge status warning (pucat, dipasangkan dengan teks `warning`) |
+| `warning` | `#B8790A` | Jatuh tempo mendekat, perlu-cek — **jangan** dipakai sebagai warna teks di atas `warning-subtle` (lihat token di bawah) |
+| `warning-subtle` | `#FCF0DF` | Background badge status warning (pucat) |
+| `warning-text-strong` | `#8A5A08` | **Ditambahkan (Diperbaiki — bug aksesibilitas nyata):** `warning` (`#B8790A`) di atas `warning-subtle` (`#FCF0DF`) kontrasnya cuma **3.23:1** — di bawah standar WCAG AA 4.5:1 untuk teks kecil (badge pakai `label`, 12px). Token ini (`#8A5A08`) memberi **5.26:1**, lolos AA dengan margin. Dipakai **khusus** sebagai warna teks badge warning, bukan pengganti `warning` di elemen lain (ikon, border) yang ukurannya lebih besar dan tidak kena ambang 4.5:1 |
 | `danger` | `#B8332A` | Terlambat bayar, perlu-servis segera |
 | `danger-subtle` | `#FBEAE8` | Background badge status danger (pucat, dipasangkan dengan teks `danger`) |
 
 **Ditambahkan (Diperbaiki — sebelumnya §4 menyebut token `{status}-subtle` di badge tapi nilai hex-nya tidak pernah didefinisikan di sini):** tiga baris `-subtle` di atas adalah versi pucat dari `success`/`warning`/`danger`, mengikuti pola yang sama seperti `primary-subtle` (§2 Primary) — dipakai sebagai background badge, bukan warna baru yang lepas dari token dasarnya.
+
+**Kontras teks badge, dicek eksplisit (Ditambahkan — WCAG AA, teks kecil butuh 4.5:1):**
+
+| Kombinasi | Rasio kontras | Status |
+|---|---|---|
+| `success` di atas `success-subtle` | 4.58:1 | Lolos AA, **tapi mepet** — kalau salah satu nilai berubah lagi nanti, hitung ulang |
+| `warning` di atas `warning-subtle` | 3.23:1 | **Gagal AA** — pakai `warning-text-strong` (`#8A5A08`, 5.26:1), bukan `warning` |
+| `danger` di atas `danger-subtle` | 5.09:1 | Lolos AA dengan aman |
 
 **Aturan:** status di atas **konsisten lintas fitur** — badge "lunas" di modul pembayaran dan badge "aktif" di modul aset sama-sama pakai `success`. Jangan improvisasi warna baru per fitur.
 
@@ -80,7 +89,7 @@ Hijau tua-kebiruan (teal gelap) dipilih untuk kesan "dipercaya, finansial, stabi
 - Secondary: outline `border`, teks `text-primary`.
 - Danger (misal "hapus penghuni"): fill `danger`, dipakai jarang, hanya untuk aksi destruktif.
 
-**Badge status:** pill kecil (radius 4px cukup, bukan full-pill) dengan background `{status}-subtle` (versi pucat dari success/warning/danger) dan teks warna solid `{status}` — bukan background solid+teks putih, supaya tidak terlalu berat visual di tabel yang padat data.
+**Badge status:** pill kecil (radius 4px cukup, bukan full-pill) dengan background `{status}-subtle` (versi pucat dari success/warning/danger) dan teks warna solid `{status}` — **kecuali badge warning, pakai `warning-text-strong` untuk teksnya, bukan `warning`** (lihat tabel kontras di §2) — bukan background solid+teks putih, supaya tidak terlalu berat visual di tabel yang padat data.
 
 **Tabel (dashboard, daftar kamar/pembayaran):**
 - Header row: background `background`, teks `label` style, sedikit lebih gelap dari body.

@@ -13,7 +13,7 @@
 | Hosting | Vercel (Hobby/gratis) | Deploy langsung dari repo Next.js. **Batasan yang harus disadari** (diverifikasi ke docs resmi Vercel, September 2026): cron job Hobby maksimal **1x/hari** (bukan per-jam) dan presisi jadwal ±59 menit — ini justru **cocok** dengan framing "terjadwal/near real-time" di §5, bukan kompromi. Fair-use guidelines Vercel **membatasi Hobby untuk pemakaian non-komersial** — begitu ada pengguna Pro yang benar-benar membayar (bukan lagi tahap portofolio/demo), wajib upgrade ke plan Pro ($20/bulan/seat) sebelum itu terjadi, bukan setelahnya. |
 | Scheduled job | Supabase Cron / Vercel Cron | Untuk reminder interval-based (lihat §5) — 1x/hari, lihat batasan Hobby di atas |
 | Email notifikasi admin | Resend (atau SMTP provider setara) | **Ditambahkan (FIX, revisi)** — dipakai **hanya** untuk mengirim email notifikasi ke admin saat ada pengajuan verifikasi Pro baru (lihat §3a). Ini **bukan** payment gateway — tidak ada dependensi approval bisnis pihak ketiga, cuma layanan pengiriman email transaksional, risiko rendah. |
-| Styling | Tailwind CSS | **Ditambahkan (FIX)** — sebelumnya tidak tercantum di sini walau sudah diasumsikan dipakai di `TASKS.md` 0.1 dan `StyleGuide.md`. Token StyleGuide diimplementasikan sebagai Tailwind config (warna, radius, spacing), bukan CSS-in-JS terpisah. |
+| Styling | Tailwind CSS **v4** | **Ditambahkan (FIX), diperjelas setelah scaffold nyata di task 0.1** — Tailwind v4 **tidak** memakai `tailwind.config.js`; token StyleGuide diimplementasikan di blok `@theme` dalam `app/globals.css` (mekanisme resmi v4 untuk custom token). Jangan cari/asumsikan ada `tailwind.config.js` di repo ini — itu bukan file yang hilang, memang tidak ada di v4. |
 | SDK Supabase | `@supabase/supabase-js`, `@supabase/ssr` | **Ditambahkan (FIX)** — SDK resmi Supabase, sudah tercakup begitu Supabase dipilih sebagai backend, bukan dependency tambahan yang perlu izin terpisah. |
 | Tooling dev (bukan runtime) | Supabase CLI, Docker (untuk Supabase lokal) | **Ditambahkan (FIX)** — dipakai untuk menjalankan Postgres lokal + menjalankan migration/tes RLS sebelum deploy, bukan bagian dari aplikasi yang di-deploy. Tidak menambah dependency di `package.json` produksi. |
 
@@ -65,11 +65,14 @@ app/
 │   ├── layout.tsx        # Layout terpisah dari (app), tanpa sidebar/nav aplikasi
 │   └── page.tsx          # Landing page utama
 ├── (auth)/               # **Ditambahkan (FIX)** — login & register, publik. Sebelumnya tidak ada di §2 sama sekali.
-│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke rute yang sesuai (jangan tampilkan form login lagi)
+│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke rute yang sesuai — logika presisnya
+│   │                     # sama seperti (onboarding)/layout.tsx di bawah, lihat penjelasan di situ
 │   ├── login/
 │   └── register/
-├── (onboarding)/         # **Ditambahkan (FIX) — gerbang pilih paket, DIPISAH dari (app)**
+├── (onboarding)/         # **Ditambahkan (FIX), diperluas (Diperbaiki — sebelumnya cuma berisi pilih-paket)**
 │   ├── layout.tsx        # HANYA cek sesi (wajib login) — TIDAK cek subscription_tier di sini
+│   ├── setup-properti/   # **Ditambahkan** — setup properti pertama (`TASKS.md` 1.2), terjadi SEBELUM
+│   │                     # pilih paket, jadi tidak mungkin ada di dalam (app) (butuh tier IS NOT NULL)
 │   └── pilih-paket/      # Lihat §3a untuk alasan kenapa ini tidak boleh ada di dalam (app)
 ├── (app)/                # Aplikasi inti — di belakang auth DAN status paket
 │   ├── layout.tsx        # Cek sesi DAN cek `subscription_tier IS NOT NULL` (lihat §3a) — hanya redirect ke
@@ -86,13 +89,20 @@ app/
 └── api/                  # API routes (dipakai (app)/admin, bukan (marketing))
 ```
 
-**Kenapa `/pilih-paket` punya route group sendiri, bukan di dalam `(app)/` (Diperbaiki — bug nyata di versi sebelumnya):** kalau `/pilih-paket` ada di dalam `(app)/`, dan layout `(app)` me-redirect setiap user bertier `NULL` ke `/pilih-paket`, maka mengunjungi `/pilih-paket` itu sendiri juga memicu layout yang sama — hasilnya **redirect loop tanpa henti**. `(onboarding)` dipisah persis supaya layout-nya hanya mensyaratkan sesi, tidak pernah mensyaratkan tier, sehingga tidak pernah me-redirect dirinya sendiri.
+**Kenapa `/pilih-paket` (dan sekarang `/setup-properti`) punya route group sendiri, bukan di dalam `(app)/` (Diperbaiki — bug nyata di versi sebelumnya):** kalau `/pilih-paket` ada di dalam `(app)/`, dan layout `(app)` me-redirect setiap user bertier `NULL` ke `/pilih-paket`, maka mengunjungi `/pilih-paket` itu sendiri juga memicu layout yang sama — hasilnya **redirect loop tanpa henti**. `(onboarding)` dipisah persis supaya layout-nya hanya mensyaratkan sesi, tidak pernah mensyaratkan tier maupun properti, sehingga tidak pernah me-redirect dirinya sendiri.
+
+**Urutan & logika redirect lengkap (Ditambahkan — sebelumnya "redirect ke rute yang sesuai" di `(auth)/layout.tsx` tidak pernah didefinisikan presisi, celah nyata):** ada 3 kemungkinan state setelah login, dicek berurutan (dipakai baik di `(auth)/layout.tsx` saat sesi sudah aktif, maupun sebagai logika navigasi umum):
+1. Belum punya baris di `properties` sama sekali → `/setup-properti`.
+2. Sudah punya properti, tapi `profiles.subscription_tier IS NULL` → `/pilih-paket`.
+3. Keduanya terpenuhi → `/dashboard` (masuk `(app)`).
+
+Ketiga pengecekan ini query sederhana (count `properties` milik tenant + baca `subscription_tier`), bukan logic kompleks — taruh di satu helper function server-side (misal `lib/get-onboarding-redirect.ts`) supaya `(auth)/layout.tsx` dan `(onboarding)/layout.tsx` memakai sumber logika yang sama, tidak duplikat/berisiko drift.
 
 **Kenapa `admin/` bukan sub-route di dalam `(app)/`:** admin bukan tenant — perannya melihat data lintas-tenant (semua pengajuan langganan), bukan data miliknya sendiri. Menaruhnya di dalam `(app)/` berisiko admin "tercampur" dengan logic tenant-scoped yang ada di sana. Dipisah sebagai top-level route dengan guard sendiri (`profiles.is_admin`).
 
 **Kenapa satu repo, bukan dipisah:** solo developer dengan satu produk portofolio — dua repo/deploy pipeline untuk satu produk adalah overhead operasional tanpa manfaat sepadan di skala ini. Route group `(marketing)` vs `(app)` sudah cukup memisahkan concern tanpa split infrastruktur.
 
-**Ketergantungan landing page ke backend:** minimal. Landing page hanya butuh satu tabel `leads` (lihat §4) untuk menangkap CTA "daftar minat" — **tidak** butuh skema multi-tenant, auth, atau RLS untuk bisa dibangun dan di-deploy. Ini yang membuat landing page bisa dibangun **sebelum** fondasi aplikasi tanpa menciptakan dependency terbalik.
+**Ketergantungan landing page ke backend:** minimal. Landing page hanya butuh satu tabel `leads` (lihat §4) untuk menangkap CTA "daftar minat" — **tidak** butuh skema multi-tenant atau auth untuk bisa dibangun dan di-deploy. **Koreksi (Diperbaiki — kalimat sebelumnya keliru menyebut "tidak butuh RLS" juga):** `leads` **tetap wajib RLS aktif** sejak baris pertama (lihat §4) — yang tidak dibutuhkan hanya skema tenant/auth, bukan RLS itu sendiri. Anon key Supabase publik sejak hari pertama landing page live, jadi RLS `leads` tidak bisa ditunda sampai fondasi aplikasi ada.
 
 ## 3. Multi-Tenancy: Row-Level Security (FIX)
 
@@ -117,6 +127,24 @@ create policy "tenant_isolation" on rooms
 ```
 
 Setiap tabel milik-tenant (`properties`, `rooms`, `occupancies`, `payments`, `assets`, `subscription_requests`) mengikuti pola yang sama. **Catatan penamaan:** entity penghuni bernama `occupancies` di ERD §4 dan `TASKS.md` — sebutan "`tenants_penghuni`" yang sempat muncul di draf awal dokumen ini adalah sisa penulisan yang tidak konsisten, bukan nama tabel yang benar. Gunakan `occupancies`.
+
+**Celah tambahan: foreign key lintas-tenant tidak ditahan RLS (Ditambahkan — celah nyata, ditemukan lewat investigasi implementasi, bukan cuma review dokumen):** pengecekan **foreign key constraint** di Postgres berjalan dengan hak akses internal yang **melihat lintas semua baris**, tidak tunduk ke RLS. Akibatnya, tenant A bisa saja `INSERT` ke `rooms` dengan `tenant_id` = miliknya sendiri (lolos `tenant_isolation`) tapi `property_id` menunjuk ke baris `properties` **milik tenant B** — FK constraint biasa tetap menganggap ini valid (barisnya memang ada), padahal tenant A tidak seharusnya bisa mereferensikan properti yang bukan miliknya. Baris nyasar ini tidak terlihat oleh tenant B (RLS SELECT tetap membatasi), tapi bisa menghalangi tenant B menghapus propertinya sendiri (FK menahan delete karena masih direferensikan, dari baris yang tidak pernah B tahu ada).
+
+**Wajib:** setiap tabel yang punya FK ke tabel tenant-owned **lain** (`rooms.property_id` → `properties`, `occupancies.room_id` → `rooms`, `payments.occupancy_id` → `occupancies`, `assets.property_id` → `properties`) **wajib** ditambah policy `AS RESTRICTIVE` di `INSERT`/`UPDATE` yang memverifikasi kedua baris punya `tenant_id` yang sama — FK constraint saja tidak cukup. Pola generik (contoh untuk `rooms`):
+
+```sql
+create policy "rooms_property_same_tenant" on rooms
+  as restrictive
+  for insert
+  with check (
+    tenant_id = (select tenant_id from properties where id = property_id)
+  );
+-- tambahkan juga untuk UPDATE kalau property_id bisa diubah setelah baris dibuat
+```
+
+Pola yang sama berlaku untuk FK tenant-owned lain — subquery menyesuaikan tabel & kolom FK-nya. `verify-rls-isolation` (lihat skill-nya) diperluas mencakup uji ini: coba insert baris yang FK-nya menunjuk ke parent row tenant lain, harus gagal.
+
+**Kolom sensitif `profiles` — jalur ketiga yang sah (Ditambahkan — kontradiksi nyata, lihat §3a):** larangan UPDATE bebas di atas **tidak berarti** kolom-kolom itu hanya bisa berubah lewat trigger signup atau service-role admin. Ada jalur ketiga yang sah: **Postgres function `SECURITY DEFINER`** yang dipanggil langsung oleh user login (bukan service role, bukan admin) — function berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari role `authenticated`), TAPI function itu sendiri mengunci transisi status yang diperbolehkan secara eksplisit di dalam logika SQL-nya (bukan UPDATE bebas kolom apa pun) dan memvalidasi `auth.uid()` cocok dengan baris yang diubah. Ini yang dipakai untuk alur pilih-paket di §3a — lihat detailnya di sana.
 
 **Skala prioritas:** MVP fokus ke owner satu-properti, tapi skema `tenant_id` + `property_id` sudah mendukung multi-properti sejak baris pertama — tidak ada migrasi skema besar yang diperlukan kalau nanti owner multi-properti onboard. **Kalau nanti v2 butuh multi-user per tenant** (staf dengan akun login sendiri di bawah satu owner), itu akan butuh tabel `tenants` terpisah dan migrasi `tenant_id` di semua tabel — didesain ulang saat itu terjadi, bukan diantisipasi sekarang.
 
@@ -145,18 +173,67 @@ Kolom-kolom sensitif itu hanya boleh berubah lewat: trigger saat signup (nilai d
 2. Cek `profiles.subscription_tier`. Kalau `NULL` (belum pernah memilih paket) → redirect ke `/pilih-paket` (yang ada di grup `(onboarding)`, bukan di sini — tidak ada loop). Tidak ada cara melewati ini dari sisi client — ini harus dicek server-side di layout/middleware, bukan cuma disembunyikan di UI (pola yang sama dengan prinsip feature gating di §6).
 3. Kalau `subscription_tier` sudah terisi (`'free'` atau `'pro'`) → lanjut ke rute yang diminta, dengan fitur dibatasi sesuai §6.
 
+**Pemilihan paket lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya):** versi sebelumnya menjelaskan alur ini seolah client langsung `UPDATE profiles` dan `INSERT subscription_requests` — ini **bertentangan** dengan aturan kolom sensitif di §3 (UPDATE bebas ke `profiles` sudah di-revoke). Perbaikannya: dua Postgres function `SECURITY DEFINER`, dipanggil user login sendiri lewat RPC (bukan service role, bukan client UPDATE langsung), masing-masing mengunci transisi status yang diperbolehkan:
+
+```sql
+-- dipanggil dari /pilih-paket saat user klik "Free"
+create function select_free_plan()
+returns void
+security definer
+as $$
+begin
+  update profiles
+  set subscription_tier = 'free', subscription_status = 'active'
+  where id = auth.uid()
+    and subscription_tier is null; -- cuma boleh sekali, waktu belum pernah pilih apa pun
+end;
+$$ language plpgsql;
+
+-- dipanggil dari /pilih-paket (submit Pro) atau saat resubmit setelah ditolak
+create function submit_pro_subscription_request(p_request_id uuid, p_proof_image_path text)
+returns void
+security definer
+as $$
+begin
+  -- tolak kalau masih ada pengajuan pending, atau kalau sudah Pro (tidak ada gunanya submit lagi)
+  if exists (
+    select 1 from profiles
+    where id = auth.uid()
+      and (subscription_status = 'pending_verification' or subscription_tier = 'pro')
+  ) then
+    raise exception 'Tidak bisa submit pengajuan baru saat status masih pending_verification atau sudah Pro';
+  end if;
+
+  insert into subscription_requests (id, tenant_id, plan_id, proof_image_path, status, submitted_at)
+  values (p_request_id, auth.uid(), (select id from plans where code = 'pro'), p_proof_image_path, 'pending', now());
+
+  update profiles
+  set subscription_tier = 'free', subscription_status = 'pending_verification'
+  where id = auth.uid();
+end;
+$$ language plpgsql;
+```
+
+Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (c) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah (versi sebelumnya menuliskan langkah (c) dan (d) sebagai dua operasi terpisah dari kode aplikasi — itu juga sudah diperbaiki dengan pendekatan ini).
+
 **Alur data saat submit pengajuan Pro:**
 1. User pilih "Pro" di `/pilih-paket` → tampilkan QRIS statis (aset gambar tetap di `public/qris-pro.png`, bukan digenerate per-transaksi) + nominal yang harus ditransfer (lihat `plans.price_idr`, PRD.md §5b).
-2. **Urutan penting (Diperbaiki — versi sebelumnya punya masalah ayam-telur):** id pengajuan (`request_id`, sebuah UUID) **dibuat di client/server terlebih dahulu** (`crypto.randomUUID()`) SEBELUM upload, supaya path file di Storage (`{tenant_id}/{request_id}.{ext}`) sudah pasti sebelum baris `subscription_requests` diinsert. Urutannya: (a) generate `request_id`, (b) upload file ke path itu, (c) insert row `subscription_requests` dengan `id = request_id` yang sama (bukan dibiarkan auto-generate) dan `proof_image_path` (bukan `proof_image_url` — lihat §4, ini path objek di bucket privat, bukan URL publik yang stabil) diisi path dari langkah (b), (d) **set `profiles.subscription_tier = 'free'` dan `profiles.subscription_status = 'pending_verification'`** (bukan `NULL` lagi, supaya lolos gate di atas dan tetap bisa pakai dashboard dengan batasan Free selama menunggu).
-3. **Boleh disubmit ulang** kalau pengajuan sebelumnya ditolak (`PRD.md` §5a) — insert row baru (dengan `request_id` baru), riwayat lama tidak dihapus/ditimpa.
+2. **Urutan penting (Diperbaiki — versi sebelumnya punya masalah ayam-telur):** id pengajuan (`request_id`, sebuah UUID) **dibuat di client/server terlebih dahulu** (`crypto.randomUUID()`) SEBELUM upload, supaya path file di Storage (`{tenant_id}/{request_id}.{ext}`) sudah pasti sebelum baris `subscription_requests` diinsert. Urutannya: (a) generate `request_id`, (b) upload file ke path itu, (c) panggil RPC `submit_pro_subscription_request(request_id, proof_image_path)` — insert row dan update `profiles` terjadi atomik di dalam function itu, bukan dua panggilan terpisah dari client.
+3. **Boleh disubmit ulang** kalau pengajuan sebelumnya ditolak (`PRD.md` §5a) — function di atas mengizinkan ini (status tidak lagi `pending_verification` setelah ditolak admin), insert row baru (dengan `request_id` baru), riwayat lama tidak dihapus/ditimpa. **Tidak boleh** submit ulang selagi status masih `pending_verification` — dicegah eksplisit oleh function.
 4. Trigger (Supabase Edge Function atau API route setelah insert) mengirim email ke admin via Resend — isi ringkas: siapa, paket apa, link untuk membuka bukti transfer (link ini mengarah ke endpoint admin yang membuat *signed URL* sementara lewat service role, bukan URL publik langsung ke bucket privat).
 5. Admin buka `/admin/verifikasi`, review, approve/reject.
+
+**RLS untuk `subscription_requests` — bukan isolasi standar biasa (Diperbaiki — celah nyata di versi sebelumnya):** kalimat "RLS isolasi tenant standar" di versi sebelumnya secara tidak sengaja memberi tenant hak `UPDATE`/`DELETE` penuh atas barisnya sendiri lewat pola `tenant_isolation` generik — artinya tenant bisa saja mengisi `status='approved'` sendiri, mengubah `rejection_reason`, atau menghapus riwayat pengajuan yang wajib disimpan sebagai jejak audit. **Perbaikan:** tenant hanya boleh `INSERT` (lewat function di atas, bukan langsung) dan `SELECT` baris miliknya sendiri — **tidak ada** policy `UPDATE`/`DELETE` untuk role `authenticated` di tabel ini sama sekali. Perubahan `status`/`rejection_reason` hanya lewat `approve_subscription_request`/`reject_subscription_request` (service role, §3a di atas).
+
+**Privasi bucket `bukti-transfer` — perbaikan cakupan izin (Diperbaiki):** bukan "baca/tulis" bebas seperti disebut sebelumnya — tenant hanya boleh **`INSERT`** (upload object baru di path miliknya) dan **`SELECT`** (lihat kembali bukti yang pernah diupload), **tidak ada** `UPDATE`/`DELETE` untuk tenant terhadap object yang sudah ada. Karena setiap pengajuan baru memakai `request_id` baru (jadi path baru), tidak ada kebutuhan menimpa file lama — bukti transfer yang sudah diupload adalah jejak audit, sama seperti baris `subscription_requests`-nya.
 
 **Kenapa endpoint admin TIDAK memakai pola RLS "admin melihat semua" seperti tenant biasa:** menulis RLS policy yang membuat satu role bisa melihat/mengubah data **lintas seluruh tenant** adalah permukaan risiko yang jauh lebih besar daripada isolasi RLS biasa — sekali salah tulis, bisa berarti kebocoran data semua tenant, bukan cuma satu. Pendekatan yang lebih aman dan lebih mudah diverifikasi: operasi admin (approve/reject) berjalan lewat **API route/Server Action yang dijalankan di server**, memakai **Supabase service role key** (yang secara desain bypass RLS) — **dan service role key ini tidak pernah boleh dikirim/diekspos ke client**. Guard aksesnya cukup satu pemeriksaan sederhana: request harus datang dari user yang `profiles.is_admin = true`, dicek di server sebelum service role key dipakai.
 
 **Approve/reject harus atomik, bukan dua update terpisah dari kode aplikasi (Ditambahkan):** approve mengubah **dua tabel sekaligus** (`subscription_requests.status` dan `profiles.subscription_tier`/`subscription_status`). Kalau ditulis sebagai dua panggilan `update` terpisah dari API route, ada window di mana satu berhasil dan satu gagal (network error, dsb) — hasilnya data tidak konsisten (misal request sudah `approved` tapi tier belum berubah). Ini harus jadi **satu Postgres function** (`approve_subscription_request(request_id, admin_id)` / `reject_subscription_request(...)`), dipanggil lewat RPC dengan service role, supaya kedua perubahan terjadi dalam satu transaction database — bukan dua langkah terpisah yang bisa gagal di tengah.
 
 **Bootstrapping admin pertama (Ditambahkan — gap yang sebelumnya tidak disebutkan):** tidak ada UI untuk membuat admin pertama — kalau semua akun baru `is_admin default false`, tidak ada cara dari dalam aplikasi untuk mempromosikan siapa pun jadi admin (masalah ayam-telur). Solusinya: **langkah manual satu kali** lewat Supabase Studio (SQL editor), `update profiles set is_admin = true where email = '<email pemilik produk>'`, dilakukan sekali di awal sebelum panel admin pernah diuji. Ini bukan bug yang perlu "diperbaiki" dengan fitur invite-admin — untuk skala solo-developer/portofolio, satu langkah manual sekali di awal itu wajar; kalau nanti butuh banyak admin, baru itu jadi fitur tersendiri (di luar scope v1).
+
+**Kenapa query `where email = ...` ini aman (Dikonfirmasi, bukan celah baru):** ini hanya aman kalau `profiles.email` tidak bisa diubah sendiri oleh user — dan memang tidak bisa, karena column-level privilege di §3 hanya meng-`grant update (full_name)`, `email` tidak termasuk kolom yang boleh ditulis role `authenticated`. Kalau suatu saat kolom lain ikut di-grant, cek ulang apakah `email` masih ikut ter-exclude sebelum mengandalkan query ini lagi.
 
 **Privasi bucket `bukti-transfer` (Ditambahkan):** ini bukti transfer bank — **bukan** aset publik seperti foto kamar. Bucket harus **private** (bukan `public: true`), dengan storage policy: tenant hanya boleh baca/tulis object di path miliknya sendiri (`{tenant_id}/...`), dan akses admin lewat service role (yang bypass storage RLS juga, konsisten dengan pola §3a). **Validasi upload** (dicek di client dan ditegakkan di level bucket): tipe file dibatasi `image/png`/`image/jpeg` saja, ukuran maksimum wajar (misal 5MB) — bukan sekadar validasi kosmetik di form, karena upload file adalah permukaan yang mudah disalahgunakan kalau tidak dibatasi.
 
@@ -181,11 +258,13 @@ erDiagram
     uuid id PK
     string contact
     string source
+    timestamp consented_at
     timestamp created_at
   }
   PROFILES {
     uuid id PK
     string email
+    string full_name
     string subscription_tier
     string subscription_status
     boolean is_admin
@@ -250,9 +329,13 @@ erDiagram
 
 Catatan: `LEADS` sengaja **tidak** punya `tenant_id` — tabel ini milik landing page (pre-auth), bukan bagian skema aplikasi tenant. **Tapi tetap wajib RLS aktif (Diperbaiki — celah nyata di versi sebelumnya):** anon key Supabase bersifat publik (tertanam di kode client), jadi tabel tanpa RLS bisa dibaca/ditulis siapa pun yang tahu anon key. Policy untuk `leads`: **hanya `INSERT` untuk role `anon`/`authenticated`, tidak ada `SELECT`** — Anda membaca isinya lewat Supabase Studio (yang pakai koneksi terpisah, bukan lewat REST API dengan anon key), bukan lewat endpoint publik.
 
+**Kolom `leads` (Ditambahkan — sebelumnya `source` dan consent tidak didefinisikan artinya):** `source` diisi dari query param `?src=` di URL landing page kalau ada (misal `?src=fbgroup-jogja`, `?src=wa-broadcast`) — dipakai untuk tahu channel mana yang benar-benar menghasilkan minat saat link disebar manual (`TASKS.md` 0.6), default `'direct'` kalau tidak ada param. `consented_at` (timestamp, diisi `now()` saat insert) — checkbox consent UU PDP **wajib divalidasi juga di server** sebelum insert (bukan cuma dicek di client), dan waktunya dicatat di kolom ini sebagai bukti audit bahwa consent memang diberikan untuk baris itu, bukan cuma "ditegakkan" tanpa jejak.
+
 Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **hanya** boleh melihat pengajuannya sendiri (RLS isolasi standar seperti tabel lain — wajib diverifikasi lewat skill `verify-rls-isolation` seperti biasa). Yang **tidak** memakai RLS "lihat semua" adalah **akses admin** ke tabel ini — itu ditegakkan lewat service role key di server, bukan lewat policy RLS tambahan (lihat §3a untuk alasannya). `rejection_reason` (nullable) diisi saat admin reject, sesuai `PRD.md` §5a.
 
 `PLANS` adalah tabel referensi kecil (2 baris: `free`, `pro`) — **RLS tetap aktif** (Diperbaiki, sama alasannya dengan `leads`): policy **hanya `SELECT`** untuk `anon`/`authenticated` (dibaca publik di halaman `/pilih-paket`, termasuk sebelum login kalau harga ditampilkan di landing page), **tidak ada `INSERT`/`UPDATE`/`DELETE`** untuk role itu — harga hanya diubah lewat migration/Supabase Studio, bukan lewat API.
+
+**Arti `plans.is_default` (Diperjelas — sebelumnya ambigu):** kolom ini murni **hint UI** untuk menandai kartu mana yang ditampilkan sebagai pilihan yang disorot/default di halaman `/pilih-paket` (lihat `StyleGuide.md` §4a) — **tidak ada hubungan** dengan `profiles.subscription_tier` yang defaultnya `NULL` (penanda "belum pilih apa pun", lihat §3a). Dua konsep berbeda: satu tentang tampilan pricing page, satu tentang state onboarding user.
 
 ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat implementasi masing-masing fitur — dokumen ini memberi kerangka, bukan DDL final.
 
