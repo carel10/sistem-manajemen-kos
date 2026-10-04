@@ -1,6 +1,10 @@
-# Architecture — Sistem Manajemen Kos
+# Architecture — manaKos
 
 > Spesifikasi teknis. Untuk spek produk/fitur, lihat `docs/PRD.md`. Untuk arahan visual, lihat `docs/StyleGuide.md`.
+>
+> **Ditambahkan (ronde 6):** proyek sekarang punya paket desain final (`manakos-design-handoff/`, disetujui pemilik proyek; paket eksternal yang **tidak di-commit** — salinan dokumennya di `docs/design/`). Dokumen ini direvisi untuk menyerap implikasi teknisnya (tema gelap, flag mode landing) — §3 (RLS/multi-tenancy), §3a (alur Free/Pro — nama bagian ini berubah di revisi 4 Okt 2026, lihat §3a), dan §6 (feature gating) **tidak tersentuh oleh paket desain**, karena paket desain tidak mengubah apa pun di lapisan keamanan/data.
+>
+> **Diperbarui 5 Okt 2026 (keputusan pemilik proyek):** §2 dan §3a direvisi untuk gerbang granular (sub-grup `(app)/(needs-property)`, hasil A1 = X; `(onboarding)` dan `/setup-properti` dihapus); §3a juga memuat catatan `NEXT_PUBLIC_PRO_AVAILABLE` dan koreksi snippet trigger signup; §4 memuat `pro_interest_signals`, `profiles.phone`, dan keputusan yang sengaja ditunda; §6 memuat keputusan charting. Isi RLS di §3 dan function `submit_pro_subscription_request` **tidak berubah**.
 
 ## 1. Tech Stack (FIX)
 
@@ -17,6 +21,8 @@
 | SDK Supabase | `@supabase/supabase-js`, `@supabase/ssr` | **Ditambahkan (FIX)** — SDK resmi Supabase, sudah tercakup begitu Supabase dipilih sebagai backend, bukan dependency tambahan yang perlu izin terpisah. |
 | Tooling dev (bukan runtime) | Supabase CLI, Docker (untuk Supabase lokal) | **Ditambahkan (FIX)** — dipakai untuk menjalankan Postgres lokal + menjalankan migration/tes RLS sebelum deploy, bukan bagian dari aplikasi yang di-deploy. Tidak menambah dependency di `package.json` produksi. |
 | Font | Inter (via `next/font`) | **Ditambahkan (FIX, ronde 6)** — dari paket desain final (`docs/StyleGuide.md` §3), bobot 400/500/600 di `app/layout.tsx`. Bukan dependency baru yang perlu izin: `next/font` sudah bagian dari Next.js, bukan library tambahan. |
+| Env flag mode landing | `NEXT_PUBLIC_LAUNCHED` (`'true'` \| `'false'`, default `'false'`) | **Ditambahkan (FIX, ronde 6)** — satu-satunya switch untuk dua mode landing page (pra-peluncuran/peluncuran) yang dirancang di paket desain final (`docs/StyleGuide.md` §7, `docs/design/03-halaman.md` §A). `NEXT_PUBLIC_` karena dibaca di client (teks CTA, tampil/sembunyi tautan Masuk) — bukan rahasia, aman public-exposed seperti anon key. |
+| Env flag Modal Paket Pro | `NEXT_PUBLIC_PRO_AVAILABLE` (`'true'` \| `'false'`, default `'false'`) | **Ditambahkan (FIX, 5 Okt 2026 — keputusan pemilik proyek)** — switch isi Modal Paket Pro: `'false'` = copy "Kabari Saya" (Pro belum dijual), `'true'` = "Upgrade ke Pro" + CTA ke `/pilih-paket` (§3a). Pola sama seperti `NEXT_PUBLIC_LAUNCHED`; diubah manual oleh pemilik proyek begitu Fase 2 selesai. **Hanya mengatur tampilan, bukan kontrol akses** — RPC upgrade tetap bisa dipanggil (catatan di §3a). |
 
 **Keputusan ini final** — hasil diskusi eksplisit, bukan default tanpa pertimbangan. Trade-off yang disadari: porsi "custom backend engineering" yang bisa dipamerkan ke client lebih tipis dibanding Next.js + NestJS/Express terpisah, karena banyak ditangani Supabase. Diterima karena prioritas saat ini adalah kecepatan solo-dev, bukan showcase backend depth.
 
@@ -32,7 +38,7 @@ Token lengkap (nilai hex per tema) ada di `docs/StyleGuide.md` §2/§3a — bagi
 
 **Mekanisme (bukan library seperti `next-themes` — zero dependency, sesuai §1 "library lain diajukan satu per satu saat dibutuhkan"):**
 
-1. Skrip inline sinkron di `<head>` (lewat `dangerouslySetInnerHTML`, **bukan** `<Script>` Next.js yang async) membaca `localStorage['mk-theme']` (`'light'` | `'dark'` | `'system'`, default `'system'`) dan menulis atribut `data-theme` ke `<html>` **sebelum** paint — mencegah kedipan tema salah. `<html>` wajib `suppressHydrationWarning` karena atribut ini beda dari yang di-render server. **Diverifikasi (5 Okt 2026):** pada saat `<body>` pertama kali ada, `data-theme` sudah benar (pilihan `light` tersimpan di OS gelap → `light`; `system` di OS gelap → `dark`), dan console dev tidak memunculkan peringatan React 19 soal tag `<script>`.
+1. Skrip inline sinkron di `<head>` (lewat `dangerouslySetInnerHTML`, **bukan** `<Script>` Next.js yang async) membaca `localStorage['mk-theme']` (`'light'` | `'dark'` | `'system'`, default `'system'`) dan menulis atribut `data-theme` ke `<html>` **sebelum** paint — mencegah kedipan tema salah. `<html>` wajib `suppressHydrationWarning` karena atribut ini beda dari yang di-render server. **Diverifikasi di Chromium, dev server (5 Okt 2026; limitasi pengujian: `docs/design/README.md`):** pada saat `<body>` pertama kali ada, `data-theme` sudah benar (pilihan `light` tersimpan di OS gelap → `light`; `system` di OS gelap → `dark`), dan console dev tidak memunculkan peringatan React 19 soal tag `<script>`.
 2. `app/globals.css`: `@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));` lalu token didefinisikan di `:root` (terang) dan `[data-theme="dark"]` (gelap), dipetakan ke utility Tailwind lewat `@theme inline`.
 3. Preferensi disimpan di `localStorage`, **bukan cookie** — membaca `cookies()` di root layout memaksa render dinamis dan menghilangkan static generation, dan cookie tidak bisa menjawab pilihan "Sistem" di server.
 4. Saat pilihan `'system'`, `ThemeSwitcher` memasang listener `matchMedia('(prefers-color-scheme: dark)')` supaya tema ikut berganti kalau OS berganti tema di tengah sesi (tanpa reload), dan `subscribeThemePref` mendengarkan event `storage` untuk sinkron antar-tab. **Batasan yang disadari:** listener `matchMedia` hidup di `ThemeSwitcher`, jadi halaman yang tidak memasangnya baru mengikuti OS setelah reload.
@@ -85,52 +91,56 @@ app/
 │   ├── layout.tsx        # Layout terpisah dari (app), tanpa sidebar/nav aplikasi
 │   └── page.tsx          # Landing page utama
 ├── (auth)/               # **Ditambahkan (FIX)** — login & register, publik. Sebelumnya tidak ada di §2 sama sekali.
-│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke rute yang sesuai — pakai logika
-│   │                     # 3-tingkat di "Urutan & logika redirect lengkap" di bawah (Diperbaiki, ronde 4 —
-│   │                     # komentar lama keliru merujuk ke (onboarding)/layout.tsx, yang sejak perbaikan
-│   │                     # redirect-loop HANYA cek sesi dan tidak lagi punya logika 3-tingkat ini)
+│   ├── layout.tsx        # Kalau sudah ada sesi aktif, redirect ke /dashboard — satu target, tidak ada cek lain
+│   │                     # (Disederhanakan, 5 Okt 2026: tidak ada lagi redirect 2-state ke /setup-properti)
 │   ├── login/
 │   └── register/
-├── (onboarding)/         # **Ditambahkan (FIX), diperluas (Diperbaiki — sebelumnya cuma berisi pilih-paket)**
-│   ├── layout.tsx        # Menaungi setup-properti DAN pilih-paket. HANYA cek sesi — TIDAK cek
-│   │                     # subscription_tier, TIDAK cek jumlah properties (Diperbaiki — versi lalu
-│   │                     # sempat menaruh cek properties di sini, itu bikin loop, lihat §3a)
-│   ├── setup-properti/   # **Ditambahkan** — setup properti pertama (`docs/TASKS.md` 1.2), terjadi SEBELUM
-│   │                     # pilih paket, jadi tidak mungkin ada di dalam (app) (butuh tier IS NOT NULL)
-│   └── pilih-paket/      # Cek "sudah ada properti?" satu-arah DI DALAM page ini sendiri, bukan di
-│                          # layout (§3a). Lihat §3a untuk alasan kenapa ini tidak boleh ada di dalam (app)
-├── (app)/                # Aplikasi inti — di belakang auth DAN status paket
-│   ├── layout.tsx        # Cek sesi DAN cek `subscription_tier IS NOT NULL` (lihat §3a) — hanya redirect ke
-│   │                     # /pilih-paket kalau tier belum dipilih; TIDAK ADA route pilih-paket di dalam grup ini
-│   ├── dashboard/
-│   ├── properti/
-│   ├── kamar/            # **Ditambahkan (FIX)** — sebelumnya tidak ada rute untuk entity `rooms` sama sekali
-│   ├── penghuni/
-│   ├── pembayaran/
-│   └── aset/
+├── (app)/                # Aplikasi inti — di belakang auth, dashboard terbuka langsung (Free by default)
+│   ├── layout.tsx        # **HANYA cek sesi** (Direvisi, 5 Okt 2026 — gerbang granular, keputusan A1 = X). TIDAK cek
+│   │                     # properti, TIDAK cek `subscription_tier`. Tidak pernah me-redirect ke halaman di dalam
+│   │                     # (app) mana pun, jadi tidak bisa menciptakan loop
+│   ├── dashboard/        # Terbuka tanpa properti: menampilkan state kosong (`Dashboard-Kosong`, CTA → /properti)
+│   ├── properti/         # Terbuka tanpa properti — TARGET redirect guard di bawah, jadi HARUS di luar sub-grup itu
+│   ├── pengaturan/       # **Ditambahkan (FIX, ronde 6)** — nav item di paket desain final (task 1.14a; gap desain:
+│   │                     # docs/StyleGuide.md §9.3); belum didesain, pakai shell (app) yang sama. Terbuka tanpa properti
+│   └── (needs-property)/ # **Ditambahkan, 5 Okt 2026** — sub-grup tanpa segmen URL (`(app)/(needs-property)/kamar` → `/kamar`)
+│       ├── layout.tsx    # GUARD: cek ≥1 baris `properties` milik tenant; nol → redirect ke /properti (§3a)
+│       ├── kamar/        # **Ditambahkan (FIX)** — sebelumnya tidak ada rute untuk entity `rooms` sama sekali
+│       ├── penghuni/
+│       ├── pembayaran/
+│       ├── aset/         # Label navigasi UI "Pemeliharaan" (docs/StyleGuide.md) — path tetap /aset, selaras nama tabel `assets`
+│       ├── analitik/     # Dashboard Analitik (Pro only, docs/PRD.md §5d) — belum ada di diagram versi sebelumnya
+│       └── pilih-paket/  # **Dipindah (Direvisi, 4 Okt 2026; ke sub-grup ini 5 Okt 2026)** — bukan gate/onboarding. Diakses
+│                         # manual (CTA Pengaturan, atau CTA Modal Paket Pro saat Pro sudah dijual — lihat §3a,
+│                         # docs/PRD.md §5a). Di sini, bukan di (app) biasa, karena RPC upgrade menolak tenant tanpa properti
 ├── admin/                # **Ditambahkan (FIX, revisi)** — panel verifikasi langganan, TERPISAH dari (app)
 │   ├── layout.tsx        # Cek `profiles.is_admin`, bukan tenant biasa — lihat §3a
 │   └── verifikasi/       # List pengajuan Pro pending + approve/reject
 └── api/                  # API routes (dipakai (app)/admin, bukan (marketing))
 ```
 
-**Kenapa `/pilih-paket` (dan sekarang `/setup-properti`) punya route group sendiri, bukan di dalam `(app)/` (Diperbaiki — bug nyata di versi sebelumnya):** kalau `/pilih-paket` ada di dalam `(app)/`, dan layout `(app)` me-redirect setiap user bertier `NULL` ke `/pilih-paket`, maka mengunjungi `/pilih-paket` itu sendiri juga memicu layout yang sama — hasilnya **redirect loop tanpa henti**. `(onboarding)` dipisah persis supaya layout-nya hanya mensyaratkan sesi, tidak pernah mensyaratkan tier maupun properti, sehingga tidak pernah me-redirect dirinya sendiri.
+**Kenapa `/properti` harus berada di luar sub-grup `(needs-property)` (kelas bug redirect-loop yang sama dengan `/setup-properti` di versi sebelumnya):** layout sub-grup me-redirect setiap owner yang belum punya baris `properties` ke `/properti`. Kalau `/properti` ada **di dalam** sub-grup itu, mengunjungi `/properti` (saat memang belum punya properti) memicu layout yang sama dan di-redirect ke dirinya sendiri — **redirect loop tanpa henti**. Karena itu `/properti`, `/dashboard`, dan `/pengaturan` adalah saudara sub-grup, bukan penghuninya, dan root `(app)/layout.tsx` hanya mensyaratkan sesi (tidak pernah properti), sehingga tidak pernah me-redirect ke halaman di dalam `(app)`. Route group `(onboarding)` dan halaman `/setup-properti` **dihapus** (5 Okt 2026): properti pertama dibuat lewat `/properti` (`docs/TASKS.md` 1.10a, yang melebur 1.2).
 
-**Urutan & logika redirect lengkap (Ditambahkan, lalu Diperbaiki lagi — versi pertama menyisipkan bug redirect loop baru, lihat di bawah):** ada 3 kemungkinan state setelah login:
-1. Belum punya baris di `properties` sama sekali → `/setup-properti`.
-2. Sudah punya properti, tapi `profiles.subscription_tier IS NULL` → `/pilih-paket`.
-3. Keduanya terpenuhi → `/dashboard` (masuk `(app)`).
+**Sub-grup `(needs-property)` tidak menambah segmen URL (diverifikasi, 5 Okt 2026):** dokumentasi Next.js menyebut folder route group "should not be included in the route's URL path" (`route-groups.md`), tetapi tidak punya contoh grup di dalam grup — jadi diuji langsung: `app/(app)/(needs-property)/probe-kamar/page.tsx` dan `app/(app)/probe-dashboard/page.tsx` menghasilkan rute `/probe-kamar` dan `/probe-dashboard` di tabel `next build`. Konsekuensinya aturan "`(app)` tetap flat" (di bawah) tidak dilanggar: URL tetap `/kamar`, `/penghuni`, dst.
 
-**Bug yang sempat masuk ke sini (Diperbaiki — ditemukan lewat investigasi implementasi):** versi sebelumnya menyuruh `(onboarding)/layout.tsx` ikut memakai logika 3-tingkat ini. Itu salah: `(onboarding)/layout.tsx` menaungi **kedua** halaman (`/setup-properti` maupun `/pilih-paket`) — kalau layout yang sama menjalankan pengecekan "belum punya properti → redirect ke `/setup-properti`" pada **setiap** request ke grup ini, maka mengunjungi `/setup-properti` sendiri (saat memang belum punya properti) ikut kena redirect ke `/setup-properti` — loop tanpa henti, kelas bug yang persis sama dengan bug `/pilih-paket` di awal dokumen ini. Efek sampingnya juga menghalangi user Free/pending mengakses `/pilih-paket` untuk upgrade atau submit ulang.
+**`/pilih-paket` ada di dalam `(needs-property)`, bukan di `(app)` biasa (keputusan A1 = X, 5 Okt 2026):** alasan lengkapnya di §3a — RPC `submit_pro_subscription_request` menolak tenant tanpa properti, dan upload bukti transfer terjadi sebelum RPC dipanggil. Halamannya sendiri tidak membawa kode guard; sub-layout yang menanganinya.
 
-**Perbaikan — logika 3-tingkat ini HANYA dipakai di titik transisi MASUK ke area ini, tidak pernah dijalankan ulang di dalamnya:**
-- Dipakai di `(auth)/layout.tsx` (saat sesi sudah aktif dan user membuka `/login`/`/register` lagi) dan di redirect langsung setelah aksi login/register berhasil.
-- **Tidak** dipakai di `(onboarding)/layout.tsx` — layout itu tetap **hanya** cek sesi, titik, tidak pernah membaca `properties` atau `subscription_tier` sama sekali.
-- Kalau urutan "properti dulu, baru pilih paket" (`docs/PRD.md` §5a poin 1) perlu ditegakkan saat user langsung membuka `/pilih-paket` (misal lewat bookmark) tanpa py properti: itu jadi pengecekan **satu-arah** di dalam `/pilih-paket/page.tsx` sendiri (bukan di layout) — kalau belum ada properti, redirect ke `/setup-properti`. Ini aman dari loop karena `/setup-properti/page.tsx` **tidak** punya pengecekan balik apa pun ke `/pilih-paket` — dia hanya render form, dan setelah submit sukses baru secara eksplisit `router.push('/pilih-paket')` (navigasi yang dipicu aksi user, bukan kondisi yang dievaluasi ulang tiap request).
+**Urutan & logika redirect (Disederhanakan lagi, 5 Okt 2026 — sebelumnya 2 state dengan `/setup-properti`; sekarang tidak ada redirect berbasis properti di titik masuk sama sekali):**
+1. Sesi aktif di `(auth)/layout.tsx` (user membuka `/login`/`/register` lagi) dan redirect langsung setelah login/register berhasil → selalu `/dashboard`. Tidak ada cek properti di sini.
+2. `/dashboard` tanpa properti → **bukan redirect**: menampilkan state kosong dengan CTA ke `/properti`.
+3. Halaman di `(needs-property)` tanpa properti → redirect ke `/properti`, hanya dari sub-layout (§3a).
 
-Query yang dipakai (count `properties` milik tenant + baca `subscription_tier`) taruh di satu helper function server-side (misal `lib/get-onboarding-redirect.ts`) supaya titik-titik pemakaiannya di atas konsisten — tapi helper ini **tidak** dipanggil dari dalam `(onboarding)/layout.tsx`.
+Query "punya properti atau belum" taruh di satu helper function server-side (misal `lib/has-property.ts`) yang dipakai sub-layout guard dan Dashboard (untuk memilih state kosong), supaya aturannya tidak tersebar. (`lib/get-onboarding-redirect.ts` dari versi sebelumnya tidak diperlukan lagi.)
+
+**Guard di layout itu UX, bukan batas keamanan (Next.js, authentication guide, bagian "Layouts and auth checks"):** layout tidak dirender ulang saat navigasi antar-halaman di dalam layout yang sama (Partial Rendering) dan tidak mengendalikan apakah sisa rute ikut dieksekusi. Jadi guard `(needs-property)` berjalan setiap kali user **masuk** ke sub-grup dari luar (dashboard, `/properti`, `/pengaturan`), tetapi tidak berjalan ulang untuk navigasi client-side antar-halaman di dalamnya. Itu cukup untuk tujuannya (jangan tampilkan halaman kosong yang tidak berguna), dan isolasi data tetap ditegakkan RLS (§3); untuk `/pilih-paket`, backstop level data ada di RPC (§3a).
 
 **Kenapa `admin/` bukan sub-route di dalam `(app)/`:** admin bukan tenant — perannya melihat data lintas-tenant (semua pengajuan langganan), bukan data miliknya sendiri. Menaruhnya di dalam `(app)/` berisiko admin "tercampur" dengan logic tenant-scoped yang ada di sana. Dipisah sebagai top-level route dengan guard sendiri (`profiles.is_admin`).
+
+**Keputusan penamaan & struktur rute vs paket desain final (Ditambahkan, ronde 6):** paket desain (`docs/design/03-halaman.md`) menulis rute sebagai `/masuk`, `/daftar`, dan rute dashboard **nested** (`/dashboard/kamar`, `/dashboard/penghuni`, `/dashboard/pembayaran`, `/dashboard/pengaturan`, `/dashboard/properti/baru`). Setelah ditinjau, proyek ini **menyimpang sengaja** dari penamaan literal itu di dua titik:
+
+1. **Rute auth tetap Bahasa Inggris** (`/login`, `/register`, bukan `/masuk`/`/daftar`) — konsisten dengan konvensi penamaan yang **sudah ada** di `CLAUDE.md` ("Bahasa penamaan variabel/fungsi/tabel: Inggris. Bahasa UI-facing: Indonesia"), yang sejauh ini cuma eksplisit untuk kode, bukan URL — diperluas di sini untuk mencakup URL juga, bukan pengecualian baru.
+2. **Rute `(app)` tetap flat** (`/kamar`, `/penghuni`, `/pembayaran`, `/aset`, `/pengaturan` — sibling, bukan `/dashboard/kamar` dkk nested). **Alasan ini bukan sekadar "secara teknis setara" (argumen lemah yang sempat diajukan sebelum ditinjau ulang) — ini soal kesesuaian URL dengan information architecture yang sebenarnya:** navigasi sidebar di desain final sendiri menampilkan Dashboard, Kamar, Penghuni, Pembayaran, Pemeliharaan, Pengaturan sebagai **daftar sibling yang rata** — satu level, bobot visual sama, tanpa indikasi hierarki apa pun. "Dashboard" di sidebar itu adalah **satu halaman di antara yang lain** (ringkasan), bukan root/parent yang menaungi Kamar/Penghuni/Pembayaran secara konseptual. Rute nested (`/dashboard/kamar`) akan menyatakan hubungan "Kamar adalah sub-resource dari Dashboard" lewat URL — padahal secara IA keduanya adalah koleksi data yang berdiri sendiri, yang kebetulan berbagi shell/sidebar yang sama lewat satu `(app)/layout.tsx`. Clue tambahan yang mendukung ini: **`Properti` sama sekali tidak muncul sebagai nav item** di sidebar desain (hanya diakses lewat dropdown `PropertySelect` atau CTA empty-state), tapi contoh satu-satunya nesting properti di tabel rute desain (`/dashboard/properti/baru`) tetap ditulis di bawah `/dashboard` — ini sinyal bahwa prefix `/dashboard/` di desain kemungkinan cuma konvensi pengelompokan internal alat desainnya, bukan keputusan IA yang disengaja. Pola flat-sibling untuk item navigasi utama ini juga yang umum dipakai produk SaaS pembanding (Linear, Vercel dashboard: `/issues`, `/settings`, bukan semua dinested di bawah `/dashboard`).
+3. **Konsekuensi implementasi:** tautan internal yang ter-hardcode di referensi HTML paket eksternal (`manakos-design-handoff/referensi/html/*.html`, tidak di-commit) (`href="/masuk"`, `href="/daftar?minat=pro"`, `href="/dashboard/kamar"`, dst.) **harus dipetakan ulang** saat kode dipindahkan ke proyek nyata — bukan disalin literal. Petakan: `/masuk→/login`, `/daftar→/register` (query param `?minat=pro` tetap), `/dashboard/kamar→/kamar`, `/dashboard/penghuni→/penghuni`, `/dashboard/pembayaran→/pembayaran`, `/dashboard/pengaturan→/pengaturan`, `/dashboard/properti/baru→/properti` (alur tambah properti — lihat task 1.10a).
 
 **Kenapa satu repo, bukan dipisah:** solo developer dengan satu produk portofolio — dua repo/deploy pipeline untuk satu produk adalah overhead operasional tanpa manfaat sepadan di skala ini. Route group `(marketing)` vs `(app)` sudah cukup memisahkan concern tanpa split infrastruktur.
 
@@ -162,7 +172,7 @@ Setiap tabel milik-tenant (`properties`, `rooms`, `occupancies`, `payments`, `as
 
 **Celah tambahan: foreign key lintas-tenant tidak ditahan RLS (Ditambahkan — celah nyata, ditemukan lewat investigasi implementasi, bukan cuma review dokumen):** pengecekan **foreign key constraint** di Postgres berjalan dengan hak akses internal yang **melihat lintas semua baris**, tidak tunduk ke RLS. Akibatnya, tenant A bisa saja `INSERT` ke `rooms` dengan `tenant_id` = miliknya sendiri (lolos `tenant_isolation`) tapi `property_id` menunjuk ke baris `properties` **milik tenant B** — FK constraint biasa tetap menganggap ini valid (barisnya memang ada), padahal tenant A tidak seharusnya bisa mereferensikan properti yang bukan miliknya. Baris nyasar ini tidak terlihat oleh tenant B (RLS SELECT tetap membatasi), tapi bisa menghalangi tenant B menghapus propertinya sendiri (FK menahan delete karena masih direferensikan, dari baris yang tidak pernah B tahu ada).
 
-**Wajib:** setiap tabel yang punya FK ke tabel tenant-owned **lain** (`rooms.property_id` → `properties`, `occupancies.room_id` → `rooms`, `payments.occupancy_id` → `occupancies`, `assets.property_id` → `properties`) **wajib** ditambah policy `AS RESTRICTIVE` di `INSERT`/`UPDATE` yang memverifikasi kedua baris punya `tenant_id` yang sama — FK constraint saja tidak cukup. Pola generik (contoh untuk `rooms`):
+**Wajib:** setiap tabel yang punya FK ke tabel tenant-owned **lain** (`rooms.property_id` → `properties`, `occupancies.room_id` → `rooms`, `payments.occupancy_id` → `occupancies`, `assets.property_id` → `properties`, `expenses.property_id` → `properties` — **Ditambahkan, 4 Okt 2026**) **wajib** ditambah policy `AS RESTRICTIVE` di `INSERT`/`UPDATE` yang memverifikasi kedua baris punya `tenant_id` yang sama — FK constraint saja tidak cukup. Pola generik (contoh untuk `rooms`):
 
 ```sql
 create policy "rooms_property_same_tenant" on rooms
@@ -176,7 +186,7 @@ create policy "rooms_property_same_tenant" on rooms
 
 Pola yang sama berlaku untuk FK tenant-owned lain — subquery menyesuaikan tabel & kolom FK-nya. `verify-rls-isolation` (lihat skill-nya) diperluas mencakup uji ini: coba insert baris yang FK-nya menunjuk ke parent row tenant lain, harus gagal.
 
-**Kolom sensitif `profiles` — jalur ketiga yang sah (Ditambahkan — kontradiksi nyata, lihat §3a):** larangan UPDATE bebas di atas **tidak berarti** kolom-kolom itu hanya bisa berubah lewat trigger signup atau service-role admin. Ada jalur ketiga yang sah: **Postgres function `SECURITY DEFINER`** yang dipanggil langsung oleh user login (bukan service role, bukan admin) — function berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari role `authenticated`), TAPI function itu sendiri mengunci transisi status yang diperbolehkan secara eksplisit di dalam logika SQL-nya (bukan UPDATE bebas kolom apa pun) dan memvalidasi `auth.uid()` cocok dengan baris yang diubah. Ini yang dipakai untuk alur pilih-paket di §3a — lihat detailnya di sana.
+**Kolom sensitif `profiles` — jalur ketiga yang sah (Ditambahkan — kontradiksi nyata, lihat §3a):** larangan UPDATE bebas di atas **tidak berarti** kolom-kolom itu hanya bisa berubah lewat trigger signup atau service-role admin. Ada jalur ketiga yang sah: **Postgres function `SECURITY DEFINER`** yang dipanggil langsung oleh user login (bukan service role, bukan admin) — function berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari role `authenticated`), TAPI function itu sendiri mengunci transisi status yang diperbolehkan secara eksplisit di dalam logika SQL-nya (bukan UPDATE bebas kolom apa pun) dan memvalidasi `auth.uid()` cocok dengan baris yang diubah. Ini yang dipakai untuk alur **upgrade ke Pro** di §3a (Direvisi, 4 Okt 2026 — pemilihan tier Free tidak lagi lewat function terpisah, lihat §3a) — lihat detailnya di sana.
 
 **Skala prioritas:** MVP fokus ke owner satu-properti, tapi skema `tenant_id` + `property_id` sudah mendukung multi-properti sejak baris pertama — tidak ada migrasi skema besar yang diperlukan kalau nanti owner multi-properti onboard. **Kalau nanti v2 butuh multi-user per tenant** (staf dengan akun login sendiri di bawah satu owner), itu akan butuh tabel `tenants` terpisah dan migrasi `tenant_id` di semua tabel — didesain ulang saat itu terjadi, bukan diantisipasi sekarang.
 
@@ -189,23 +199,50 @@ revoke update on profiles from authenticated;
 grant update (full_name) on profiles to authenticated; -- hanya kolom yang memang boleh diubah user sendiri
 ```
 
-Kolom-kolom sensitif itu hanya boleh berubah lewat **tiga** jalur (Diperbaiki — kalimat ini sempat tidak sinkron dengan paragraf "jalur ketiga yang sah" di atas setelah paragraf itu ditambahkan): trigger saat signup (nilai default), Postgres function `SECURITY DEFINER` yang transisinya dikunci eksplisit dan dipanggil user login sendiri (`select_free_plan`, `submit_pro_subscription_request` — lihat §3a), atau Postgres function dengan service role untuk operasi admin lintas-tenant (`approve_subscription_request`, dst. — lihat §3a). Ini bukan detail kecil — tanpa ini, seluruh mekanisme gerbang paket & admin di §3a bisa dilewati dengan satu request langsung ke API Supabase.
+Kolom-kolom sensitif itu hanya boleh berubah lewat **tiga** jalur (Diperbaiki — kalimat ini sempat tidak sinkron dengan paragraf "jalur ketiga yang sah" di atas setelah paragraf itu ditambahkan; Direvisi lagi 4 Okt 2026 — `select_free_plan` dihapus dari daftar ini, lihat §3a): trigger saat signup (set `subscription_tier='free'`, `subscription_status='active'` langsung — bukan lagi `NULL`), Postgres function `SECURITY DEFINER` yang transisinya dikunci eksplisit dan dipanggil user login sendiri untuk upgrade ke Pro (`submit_pro_subscription_request` — lihat §3a), atau Postgres function dengan service role untuk operasi admin lintas-tenant (`approve_subscription_request`, dst. — lihat §3a). Ini bukan detail kecil — tanpa ini, seluruh mekanisme upgrade & admin di §3a bisa dilewati dengan satu request langsung ke API Supabase.
 
-## 3a. Gerbang Wajib Pilih Paket & Verifikasi Admin (FIX, revisi)
+## 3a. Free by Default & Verifikasi Upgrade Pro (Direvisi total, 4 Okt 2026 — menggantikan gerbang wajib pilih-paket; gerbang properti dibuat granular 5 Okt 2026)
 
-**Alur produk lengkap ada di `docs/PRD.md` §5a — bagian ini fokus ke penegakan teknisnya.**
+> **Keputusan pemilik proyek, 3 Okt 2026:** alur direvisi dari *landing → wajib pilih paket → dashboard* menjadi *landing → login/register → dashboard (Free by default, fitur Pro terkunci) → klik fitur terkunci → Modal Paket Pro → (kalau Pro sudah dijual) form upgrade → QRIS → Pro*. Ini menggantikan isi bagian §3a versi sebelumnya secara total, bukan menambah di atasnya. **Alur produk lengkap ada di `docs/PRD.md` §5a — bagian ini fokus ke penegakan teknisnya.**
 
-**Penegakan gerbang, dipecah ke dua layout terpisah (Diperbaiki — versi sebelumnya menaruh gerbang dan tujuannya di layout yang sama, menyebabkan redirect loop; lihat §2):**
+**Modal Paket Pro — mekanisme trigger & isi berbeda per fase (Baru, 4 Okt 2026 — rekonsiliasi konflik yang sebelumnya ditandai `[TERBUKA]` di `docs/PRD.md` §5a/§9; lihat catatan status rekonsiliasi di sana — mekanisme flag dan pencatatan minat dikonfirmasi pemilik proyek 5 Okt 2026, lihat di bawah):**
 
-`(onboarding)/layout.tsx` (menaungi **kedua** halaman — `/setup-properti` dan `/pilih-paket`):
-1. Cek sesi saja. Kalau tidak ada sesi → redirect ke `/login`. **Tidak ada pengecekan lain di sini sama sekali** — bukan cuma `subscription_tier`, juga **bukan** jumlah `properties` (Diperbaiki — versi sebelumnya sempat menaruh logika 3-tingkat di sini, itu menyebabkan redirect loop persis di halaman yang seharusnya jadi tujuannya sendiri; lihat §2). Urutan "properti dulu, baru pilih paket" ditegakkan di dalam `/pilih-paket/page.tsx` sendiri sebagai pengecekan satu-arah, bukan di layout ini.
+Klik elemen/menu Pro-locked di dashboard (modul Asset & Maintenance, reminder) membuka **Modal Paket Pro** — ringkasan singkat + satu CTA, **bukan** form lengkap di dalam modal (lihat `docs/StyleGuide.md` §6). Isi CTA bergantung pada **satu flag**, bukan dua implementasi UI terpisah:
 
-`(app)/layout.tsx` (dashboard dan seterusnya):
-1. Cek sesi. Kalau tidak ada sesi → redirect ke `/login`.
-2. Cek `profiles.subscription_tier`. Kalau `NULL` (belum pernah memilih paket) → redirect ke `/pilih-paket` (yang ada di grup `(onboarding)`, bukan di sini — tidak ada loop). Tidak ada cara melewati ini dari sisi client — ini harus dicek server-side di layout/middleware, bukan cuma disembunyikan di UI (pola yang sama dengan prinsip feature gating di §6).
-3. Kalau `subscription_tier` sudah terisi (`'free'` atau `'pro'`) → lanjut ke rute yang diminta, dengan fitur dibatasi sesuai §6.
+- **Selama Pro belum dijual** (`docs/PRD.md` §5a — status saat ini, berlaku sampai Fase 2/P1 selesai): modal pakai copy "Kabari Saya" dari `docs/design/07-copy-deck.md` ("Fitur ini belum bisa dipakai di paket Free. Paket Pro sedang disiapkan dan belum dijual...") — CTA **tidak** membawa ke `/pilih-paket`; ia mencatat minat ke tabel baru `pro_interest_signals` (§4, `docs/TASKS.md` 1.14c) — **bukan** `leads`, karena `leads` milik landing page pre-auth (tanpa `tenant_id`, diisi `anon`) sedangkan sinyal ini milik tenant yang sudah login. **[FIX — keputusan pemilik proyek, 5 Okt 2026]**
+- **Begitu Pro resmi dijual** (Fase 2 selesai): modal pakai copy ringkas "Upgrade ke Pro" + harga, CTA membawa ke `/pilih-paket` (yang berisi form QRIS + upload bukti transfer, sesuai §3a di bawah).
 
-**Pemilihan paket lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya, lalu diperbaiki LAGI setelah ditemukan 5 celah tambahan lewat investigasi implementasi):** versi pertama menjelaskan alur ini seolah client langsung `UPDATE profiles`/`INSERT subscription_requests` — bertentangan dengan §3. Draf `SECURITY DEFINER` pertama memperbaiki itu, tapi punya 5 celah nyata yang baru ketahuan saat benar-benar diimplementasikan:
+**Mekanisme flag — `[FIX, dikonfirmasi pemilik proyek 5 Okt 2026; sebelumnya hipotesis]`:** env var `NEXT_PUBLIC_PRO_AVAILABLE` (`'true'` | `'false'`, default `'false'`), mengikuti pola `NEXT_PUBLIC_LAUNCHED` yang sudah ada (§1) — satu switch manual yang diubah pemilik proyek begitu Fase 2 benar-benar selesai, dibaca di client untuk menentukan copy/CTA modal.
+
+**Catatan eksplisit (keputusan pemilik proyek D, 5 Okt 2026): flag ini HANYA mengatur tampilan, bukan kontrol akses.** Selama Pro "belum dijual" (`NEXT_PUBLIC_PRO_AVAILABLE='false'`), RPC `submit_pro_subscription_request` di bawah **tetap bisa dipanggil** langsung oleh user yang login (lewat REST/RPC, tanpa melewati UI). Risikonya rendah: pengajuan baru hanya berefek setelah **approve manual** admin (task 1.9) — tidak ada pembayaran otomatis dan tidak ada perubahan tier tanpa persetujuan admin, jadi paling buruk antrean admin berisi pengajuan iseng. Kalau itu jadi masalah nyata, mitigasinya di level function (data/API, sesuai prinsip di `CLAUDE.md`), bukan di flag UI.
+
+**Penegakan, dipecah ke dua layout bertingkat (Direvisi, 5 Okt 2026 — gerbang granular, keputusan pemilik proyek A1 = X; menggantikan satu `(app)/layout.tsx` yang mengecek properti untuk semua halaman, dan menggantikan `(onboarding)/layout.tsx` yang sudah tidak ada):**
+
+`(app)/layout.tsx` (semua halaman aplikasi: dashboard, `/properti`, `/pengaturan`, dan seluruh sub-grup di bawahnya):
+1. Cek sesi. Kalau tidak ada sesi → redirect ke `/login`. **Hanya itu** — tidak cek properti, tidak cek `subscription_tier`. Layout ini tidak pernah me-redirect ke halaman di dalam `(app)`, jadi tidak bisa menciptakan loop (§2).
+
+`(app)/(needs-property)/layout.tsx` (`/kamar`, `/penghuni`, `/pembayaran`, `/aset`, `/analitik`, **dan `/pilih-paket`**):
+1. Cek **jumlah baris `properties`** milik tenant — query tenant-scoped biasa lewat RLS, bukan service role (**bukan** cek `subscription_tier`: kolom itu sekarang selalu terisi sejak signup, lihat di bawah). Kalau nol → redirect ke `/properti`, yang ada **di luar** sub-grup ini (tidak ada loop, lihat §2). Dicek server-side di layout, bukan cuma disembunyikan di UI.
+2. Kalau sudah punya properti → lanjut ke rute yang diminta, dengan fitur dibatasi sesuai `subscription_tier` (§6). **Tidak ada state "belum pilih paket"** — tier selalu `'free'` atau `'pro'`.
+
+**`/pilih-paket` ada di sub-grup ini, bukan di `(app)` biasa (keputusan A1 = X, 5 Okt 2026):** halamannya tidak membawa logika guard sendiri; sub-layout di atas yang menjamin owner punya ≥1 properti saat halaman ini dibuka lewat navigasi normal. Alasan penempatannya: `submit_pro_subscription_request` (di bawah) menolak tenant tanpa properti ("Setup properti pertama dulu sebelum memilih paket"), sementara upload bukti transfer terjadi **sebelum** RPC dipanggil (lihat "Alur data saat submit pengajuan Pro") — kalau halaman ini terbuka tanpa properti, user bisa sampai ke form QRIS, mengunggah bukti, lalu ditolak RPC dan meninggalkan **file yatim** di bucket (risiko #6 di bawah, yang tadinya hanya kasus langka dan akan jadi alur normal).
+
+**Tier Free ditetapkan via trigger signup, bukan RPC terpisah (Direvisi, 4 Okt 2026 — menggantikan `select_free_plan()` versi sebelumnya):** karena tidak ada lagi momen eksplisit "pilih Free" (dashboard terbuka langsung dengan tier Free), trigger yang berjalan saat baris baru masuk ke `profiles` (dibuat di 1.1, bersamaan dengan trigger Supabase Auth → `profiles`) langsung set `subscription_tier = 'free'`, `subscription_status = 'active'` sebagai nilai kolom, **bukan** lewat `UPDATE` terpisah:
+
+```sql
+-- bagian dari trigger signup yang membuat baris profiles — bukan function baru/terpisah.
+-- Trigger ini sudah wajib ada untuk auth.users → profiles (task 1.1); migration 1.1c menggantinya lewat
+-- `create or replace function public.handle_new_user()` dan baris di bawah menambah 2 kolom default.
+-- full_name WAJIB tetap diisi: snippet versi sebelumnya menghilangkannya (bug, ditemukan 5 Okt 2026).
+insert into public.profiles (id, email, full_name, subscription_tier, subscription_status, is_admin)
+values (new.id, new.email, new.raw_user_meta_data ->> 'full_name', 'free', 'active', false);
+```
+
+**`create or replace function` menghapus atribut yang tidak disebut ulang (Ditambahkan, 5 Okt 2026):** function ini wajib tetap `security definer` **dan** `set search_path = ''` — tulis ulang keduanya di migration 1.1c, lalu verifikasi lewat `pg_proc.prosecdef` dan `pg_proc.proconfig`, bukan diasumsikan (`docs/TASKS.md` 1.1c). Kolom `phone` ditambahkan di migration terpisah (1.1d, §4).
+
+Ini **lebih sederhana** dari `select_free_plan()` versi sebelumnya (tidak ada RPC yang bisa gagal/di-retry, tidak ada window di mana tier masih `NULL`), tapi juga berarti **tidak ada lagi** pengecekan "properti dulu, baru pilih paket" di titik ini (trigger signup) — urutan itu sekarang ditegakkan di dua tempat lain: sub-layout `(app)/(needs-property)/layout.tsx` (UI, termasuk untuk `/pilih-paket`) dan cek `properties` di dalam `submit_pro_subscription_request` (data), bukan soal tier. **Guard UI dan cek di RPC sengaja berlapis dua: sub-layout mencegah user sampai ke form (dan ke upload bukti), tetapi hanya berjalan saat masuk ke sub-grup — layout tidak dijalankan ulang untuk navigasi di dalamnya dan tidak mencegah halaman dieksekusi (Next.js, authentication guide, "Layouts and auth checks") — jadi cek di RPC tetap menjadi backstop level data yang tidak bisa dilewati lewat UI.**
+
+**Upgrade ke Pro tetap lewat `SECURITY DEFINER` function, bukan UPDATE/INSERT langsung dari client (Diperbaiki — kontradiksi nyata di versi sebelumnya, lalu diperbaiki LAGI setelah ditemukan 5 celah tambahan lewat investigasi implementasi):** versi pertama menjelaskan alur ini seolah client langsung `UPDATE profiles`/`INSERT subscription_requests` — bertentangan dengan §3. Draf `SECURITY DEFINER` pertama memperbaiki itu, tapi punya 5 celah nyata yang baru ketahuan saat benar-benar diimplementasikan (celah #5, soal `select_free_plan()`, sudah tidak relevan lagi sejak function itu dihapus di atas — disisakan di sini sebagai catatan sejarah kenapa `submit_pro_subscription_request` tetap pakai `if not found then raise exception` yang sama):
 
 1. **Tidak ada `set search_path`** — tanpa ini, function bisa "ditipu" nama tabel dari schema lain (search_path hijacking), pola yang secara eksplisit diperingatkan linter Supabase untuk setiap function `SECURITY DEFINER`.
 2. **`EXECUTE` tidak dibatasi** — function baru di Postgres bisa dipanggil `PUBLIC` secara default, termasuk role `anon`. Untuk `anon`, `auth.uid()` bernilai `NULL` — kalau tidak dicegah eksplisit, `submit_pro_subscription_request` bisa lolos dan menyisipkan baris `tenant_id NULL` dari pengunjung yang belum login sama sekali. **[Diperbaiki lagi, ronde 4 — diverifikasi langsung di database lokal, bukan cuma dari dokumentasi]** `revoke execute ... from public` **saja tidak cukup** di Supabase: platform ini memberi role `anon` dan `authenticated` hak eksekusi **langsung** untuk function baru (bukan cuma lewat `public`), jadi revoke wajib menyebut role-nya eksplisit (`revoke execute ... from public, anon`) — tanpa ini, `anon` tetap bisa memanggil function meski sudah di-revoke dari `public`. Pengecekan `auth.uid() is null` di dalam function tetap jadi lapis pertahanan kedua yang menahan dampaknya, tapi klaim "hanya `authenticated` yang bisa memanggil" **tidak benar** tanpa revoke eksplisit ini.
@@ -225,36 +262,8 @@ create unique index subscription_requests_one_pending_per_tenant
 
 ```sql
 -- === Bagian function SECURITY DEFINER, task 1.3b ===
--- dipanggil dari /pilih-paket saat user klik "Free"
-create function public.select_free_plan()
-returns void
-language plpgsql
-security definer
-set search_path = ''  -- celah #1: cegah search_path hijacking, semua tabel di bawah wajib schema-qualified
-as $$
-begin
-  if auth.uid() is null then  -- celah #2: pertahanan berlapis meski EXECUTE sudah dicabut dari anon
-    raise exception 'Harus login';
-  end if;
-
-  -- (opsional, disepakati) tegakkan urutan "properti dulu" di level DB, bukan cuma UI (PRD §5a poin 1)
-  if not exists (select 1 from public.properties where tenant_id = auth.uid()) then
-    raise exception 'Setup properti pertama dulu sebelum memilih paket';
-  end if;
-
-  update public.profiles
-  set subscription_tier = 'free', subscription_status = 'active'
-  where id = auth.uid()
-    and subscription_tier is null; -- cuma boleh sekali, waktu belum pernah pilih apa pun
-
-  if not found then  -- celah #5: jangan gagal diam-diam
-    raise exception 'Paket sudah pernah dipilih sebelumnya';
-  end if;
-end;
-$$;
-
-revoke execute on function public.select_free_plan() from public, anon; -- [Diperbaiki, ronde 4] "from public" saja tidak mencabut akses anon di Supabase
-grant execute on function public.select_free_plan() to authenticated;
+-- select_free_plan() DIHAPUS (Direvisi, 4 Okt 2026) — tier Free sekarang ditetapkan trigger signup,
+-- bukan RPC yang dipanggil dari UI. Hanya submit_pro_subscription_request() yang tersisa di bawah.
 
 -- dipanggil dari /pilih-paket (submit Pro) atau saat resubmit setelah ditolak
 -- p_proof_image_path DIHAPUS dari parameter (celah #3) — path dibentuk function sendiri dari auth.uid()
@@ -328,7 +337,7 @@ grant execute on function public.submit_pro_subscription_request(uuid, text) to 
 
 **Urutan upload jadi berubah sedikit (Diperbaiki — konsekuensi dari celah #3):** client **tetap** generate `request_id` dulu (`crypto.randomUUID()`) dan upload ke path `{tenant_id}/{request_id}.{ext}` **sebelum** memanggil RPC — tapi sekarang path itu harus **persis** sama dengan yang function bentuk sendiri dari `auth.uid()`+`request_id`+`ext` (client tidak lagi mengirim path lengkap, hanya ekstensi file), karena function memverifikasi keberadaan objek di path yang dia hitung sendiri, bukan path yang dipercaya mentah dari parameter.
 
-Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) `EXECUTE` dicabut dari `public`/`anon`, hanya `authenticated` yang bisa memanggil, plus pengecekan `auth.uid() is null` sebagai lapis kedua, (c) `search_path` dikunci kosong dan semua tabel schema-qualified, (d) path file dibentuk function sendiri dan divalidasi keberadaannya, bukan dipercaya dari client, (e) race condition ditutup dua lapis (row lock + unique index parsial), (f) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (g) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah.
+Function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege pemiliknya (bisa menulis kolom yang di-revoke dari `authenticated`), karena: (a) selalu memakai `auth.uid()` sendiri sebagai target, tidak pernah menerima `tenant_id` dari parameter yang bisa dipalsukan, (b) `EXECUTE` dicabut dari `public`/`anon`, hanya `authenticated` yang bisa memanggil, plus pengecekan `auth.uid() is null` sebagai lapis kedua, (c) `search_path` dikunci kosong dan semua tabel schema-qualified, (d) path file dibentuk function sendiri dan divalidasi keberadaannya, bukan dipercaya dari client, (e) race condition ditutup dua lapis (row lock + unique index parsial), (f) transisi status yang diizinkan **dikunci di dalam logic**, bukan UPDATE bebas kolom apa pun, (g) `insert` dan `update profiles` terjadi dalam **satu function** = satu transaction, sekaligus menutup masalah atomicity yang sama seperti approve/reject di bawah.
 
 **Alur data saat submit pengajuan Pro:**
 1. User pilih "Pro" di `/pilih-paket` → tampilkan QRIS statis (aset gambar tetap di `public/qris-pro.png`, bukan digenerate per-transaksi) + nominal yang harus ditransfer (lihat `plans.price_idr`, docs/PRD.md §5b).
@@ -349,11 +358,11 @@ Kedua function ini **aman** meski `SECURITY DEFINER` berjalan dengan privilege p
 
 **Skenario race/atomicity tambahan untuk 1.9, belum tertutup oleh dua lapis di 1.3b (Ditambahkan, ronde 4 — ditemukan lewat analisis implementasi 1.3b sebelum 1.9 dibangun, jadi dicatat di sini dulu sebagai syarat desain, bukan ditemukan sesudah 1.9 jadi):**
 
-1. **Approve/reject saling menimpa.** Sama seperti celah #4/#5 di `select_free_plan()`/`submit_pro_subscription_request()` di atas, kedua function 1.9 wajib mengunci baris (`select ... for update`) dan memvalidasi `where status = 'pending'` + `if not found then raise exception` — tanpa ini, double-click admin, atau approve dan reject yang hampir bersamaan pada pengajuan yang sama, bisa saling menimpa hasil.
+1. **Approve/reject saling menimpa.** Sama seperti celah #4/#5 di `submit_pro_subscription_request()` di atas, kedua function 1.9 wajib mengunci baris (`select ... for update`) dan memvalidasi `where status = 'pending'` + `if not found then raise exception` — tanpa ini, double-click admin, atau approve dan reject yang hampir bersamaan pada pengajuan yang sama, bisa saling menimpa hasil.
 2. **Urutan penguncian wajib konsisten dengan 1.3b.** Function 1.9 mengunci baris di **dua** tabel (`profiles` dan `subscription_requests`) — urutannya harus sama dengan `submit_pro_subscription_request()` (kunci `profiles` dulu, baru `subscription_requests`). Urutan berbeda antar-function membuka peluang deadlock kalau dua transaction saling menunggu lock yang dipegang satu sama lain di urutan terbalik.
-3. **Retry setelah sukses bukan error bagi user.** Timeout jaringan lalu client mengulang panggilan, atau double-click tombol "Free"/submit/approve, membuat panggilan kedua gagal (baris sudah dalam status yang dicek) walaupun panggilan pertama sudah berhasil — datanya tetap konsisten, tapi UI **wajib** menampilkan pesan "sudah tercatat/sudah diproses" untuk kasus ini, bukan error generik yang membuat user mengira aksinya gagal total.
-4. **Dua sumber kebenaran.** Pengecekan status membaca `profiles.subscription_status`, sementara unique index parsial (1.3) menjaga `subscription_requests.status` — keduanya harus tetap disebut eksplisit sebagai dua kolom terpisah yang bisa drift (misal diedit manual lewat Supabase Studio), bukan diasumsikan selalu sinkron. **Mitigasi (Diterapkan di `submit_pro_subscription_request()` di atas, ronde 5):** function itu sekarang juga mengecek langsung ke `subscription_requests` (bukan cuma `profiles.subscription_status`) sebelum insert, supaya kalau kedua sumber sempat drift, error yang muncul jelas ("sudah ada pengajuan pending") bukan `unique_violation` mentah dari Postgres. Function `approve_subscription_request`/`reject_subscription_request` di 1.9 (belum dibangun) **wajib** menerapkan pola cek-langsung yang sama terhadap `subscription_requests` sebelum mengubah statusnya. Tambahan yang **masih terbuka**: CHECK constraint pada kolom `subscription_requests.status` (`docs/TASKS.md` 1.3, misal `check (status in ('pending','approved','rejected'))`) supaya nilai tidak valid (typo kapitalisasi, dst.) tidak lolos dari predikat unique index parsial — belum ditambahkan ke SQL migration manapun di dokumen ini, masih berupa instruksi task di `docs/TASKS.md` 1.3.
-5. **Function harus tetap `VOLATILE`.** Default `plpgsql` sudah `VOLATILE` — kalau suatu saat function ini (atau `select_free_plan`/`submit_pro_subscription_request`) ditandai `STABLE` saat refactor, Postgres boleh meng-cache hasil query lintas-statement dalam transaction yang sama, sehingga pengecekan setelah row lock membaca snapshot lama dan lock-nya jadi tidak berguna. Jangan pernah tandai function yang melakukan pola cek-lalu-tulis seperti ini `STABLE`.
+3. **Retry setelah sukses bukan error bagi user.** Timeout jaringan lalu client mengulang panggilan, atau double-click tombol submit/approve, membuat panggilan kedua gagal (baris sudah dalam status yang dicek) walaupun panggilan pertama sudah berhasil — datanya tetap konsisten, tapi UI **wajib** menampilkan pesan "sudah tercatat/sudah diproses" untuk kasus ini, bukan error generik yang membuat user mengira aksinya gagal total.
+4. **Dua sumber kebenaran.** Pengecekan status di 1.3b membaca `profiles.subscription_status`, sementara unique index parsial (1.3) menjaga `subscription_requests.status` — keduanya harus tetap disebut eksplisit sebagai dua kolom terpisah yang bisa drift (misal diedit manual lewat Supabase Studio), bukan diasumsikan selalu sinkron. Mitigasi: function 1.3b/1.9 juga mengecek langsung ke `subscription_requests` (bukan cuma `profiles.subscription_status`) untuk memastikan tidak ada baris `pending` lain, **dan** tambahkan CHECK constraint pada kolom `subscription_requests.status` (`docs/TASKS.md` 1.3, misal `check (status in ('pending','approved','rejected'))`) supaya nilai tidak valid (typo kapitalisasi, dst.) tidak lolos dari predikat unique index parsial.
+5. **Function harus tetap `VOLATILE`.** Default `plpgsql` sudah `VOLATILE` — kalau suatu saat function ini (atau `submit_pro_subscription_request`) ditandai `STABLE` saat refactor, Postgres boleh meng-cache hasil query lintas-statement dalam transaction yang sama, sehingga pengecekan setelah row lock membaca snapshot lama dan lock-nya jadi tidak berguna. Jangan pernah tandai function yang melakukan pola cek-lalu-tulis seperti ini `STABLE`.
 6. **File yatim di bucket (bukan race condition, tapi gap operasional terkait).** Kalau upload ke `bukti-transfer` berhasil tapi RPC `submit_pro_subscription_request` sesudahnya ditolak (misal validasi lain gagal), file itu tertinggal di bucket dan tenant tidak punya cara menghapusnya sendiri (policy bucket cuma `INSERT`/`SELECT`, lihat di bawah). **[RISIKO DITERIMA]** untuk v1 — butuh jalur pembersihan manual oleh admin, bukan fitur delete-by-tenant (itu berlawanan dengan alasan bucket sengaja tidak diberi `UPDATE`/`DELETE` untuk tenant).
 
 **Bootstrapping admin pertama (Ditambahkan — gap yang sebelumnya tidak disebutkan):** tidak ada UI untuk membuat admin pertama — kalau semua akun baru `is_admin default false`, tidak ada cara dari dalam aplikasi untuk mempromosikan siapa pun jadi admin (masalah ayam-telur). Solusinya: **langkah manual satu kali** lewat Supabase Studio (SQL editor), `update profiles set is_admin = true where email = '<email pemilik produk>'`, dilakukan sekali di awal sebelum panel admin pernah diuji. Ini bukan bug yang perlu "diperbaiki" dengan fitur invite-admin — untuk skala solo-developer/portofolio, satu langkah manual sekali di awal itu wajar; kalau nanti butuh banyak admin, baru itu jadi fitur tersendiri (di luar scope v1).
@@ -377,7 +386,9 @@ erDiagram
   ROOMS ||--o{ OCCUPANCIES : has
   OCCUPANCIES ||--o{ PAYMENTS : generates
   PROPERTIES ||--o{ ASSETS : has
+  PROPERTIES ||--o{ EXPENSES : has
   PROFILES ||--o{ SUBSCRIPTION_REQUESTS : submits
+  PROFILES ||--o{ PRO_INTEREST_SIGNALS : signals
   PLANS ||--o{ SUBSCRIPTION_REQUESTS : requested_as
   LEADS {
     uuid id PK
@@ -390,6 +401,7 @@ erDiagram
     uuid id PK
     string email
     string full_name
+    string phone
     string subscription_tier
     string subscription_status
     boolean is_admin
@@ -417,12 +429,14 @@ erDiagram
     uuid tenant_id FK
     string name
     string address
+    timestamp created_at
   }
   ROOMS {
     uuid id PK
     uuid property_id FK
     uuid tenant_id FK
     string status
+    timestamp created_at
   }
   OCCUPANCIES {
     uuid id PK
@@ -430,6 +444,7 @@ erDiagram
     uuid tenant_id FK
     string penghuni_name
     date start_date
+    date end_date
   }
   PAYMENTS {
     uuid id PK
@@ -446,11 +461,36 @@ erDiagram
     string lifecycle_status
     date acquired_date
   }
+  EXPENSES {
+    uuid id PK
+    uuid property_id FK
+    uuid tenant_id FK
+    string category
+    numeric amount
+    date expense_date
+    string note
+    timestamp created_at
+  }
+  PRO_INTEREST_SIGNALS {
+    uuid id PK
+    uuid tenant_id FK
+    timestamp created_at
+  }
 ```
 
 **Catatan tipe (Diperbaiki):** `tenant_id` di semua tabel di atas bertipe `uuid` dan mereferensikan `profiles.id` langsung (lihat §3 — satu owner = satu tenant di v1, tidak ada tabel `tenants` terpisah). Versi sebelumnya menuliskan sebagian sebagai `string` — itu bukan keputusan, hanya kelalaian penulisan, sudah diperbaiki di sini.
 
 **Catatan tambahan (Diperbaiki — inkonsistensi baru ditemukan):** `PROFILES` **tidak** punya kolom `tenant_id` sendiri — versi ERD sebelumnya keliru mencantumkannya. Karena `profiles.id` **adalah** tenant identifier itu sendiri (lihat §3), menambahkan kolom `tenant_id` terpisah di `PROFILES` yang menunjuk ke dirinya sendiri hanya menciptakan dua sumber kebenaran yang bisa saling drift — cukup pakai `profiles.id` langsung di mana pun `tenant_id` owner dibutuhkan. Kolom `tenant_id` **hanya** ada di tabel lain yang **dimiliki** tenant (`properties`, `rooms`, `occupancies`, `payments`, `assets`, `subscription_requests`), bukan di `profiles` sendiri.
+
+**`EXPENSES` (Baru, 4 Okt 2026 — Pro only, lihat §6):** tabel tenant-owned standar, FK ke `properties` seperti `assets` (pola RLS & FK-same-tenant check yang sama, §3) — `category` dibatasi `CHECK` constraint ke 6 kategori preset **(FIX, keputusan pemilik proyek 5 Okt 2026)**: `Listrik`, `Air`, `Internet`, `Gaji Staf`, `Perbaikan/Maintenance`, `Lainnya` (`docs/PRD.md` §5d) — **bukan** enum Postgres (sulit diubah); pakai `text` + `CHECK ... IN (...)` yang mudah di-`ALTER`.
+
+**`OCCUPANCIES.end_date` (Baru, 4 Okt 2026 — nullable):** diisi saat penghuni pindah keluar. **Perubahan perilaku CRUD penting:** aksi "hapus penghuni" di `docs/TASKS.md` 1.12 **tidak lagi** `DELETE` baris — jadi `UPDATE ... SET end_date = now()` ("akhiri sewa"). Baris `occupancies` yang sudah berakhir **tetap ada** sebagai riwayat, dibutuhkan untuk menghitung tren okupansi historis di Dashboard Analitik (`docs/PRD.md` §5d) — kalau di-hard-delete seperti sebelumnya, riwayat bulan-bulan sebelumnya hilang permanen dan metrik okupansi hanya bisa menampilkan kondisi hari ini.
+
+**`PRO_INTEREST_SIGNALS` (Baru, 5 Okt 2026 — keputusan pemilik proyek):** menampung klik CTA "Kabari Saya Saat Pro Tersedia" di Modal Paket Pro selama Pro belum dijual (§3a). Tabel tenant-owned standar (`tenant_id` → `profiles.id`, RLS sejak migration pertama, `docs/TASKS.md` 1.14c) **tetapi dengan pola INSERT-only seperti `leads`:** policy hanya `INSERT` untuk `authenticated` dengan `WITH CHECK (tenant_id = auth.uid())`; **tidak ada** `SELECT`/`UPDATE`/`DELETE` untuk tenant — pemilik produk membacanya lewat Supabase Studio. **Bukan** `leads`: `leads` milik landing page pre-auth (tanpa `tenant_id`, diisi `anon`), sedangkan sinyal ini milik tenant yang sudah login. `unique(tenant_id)` **ditunda** (keputusan pemilik proyek, 5 Okt 2026; risiko rendah — satu tenant bisa menghasilkan beberapa baris, hitung `count(distinct tenant_id)` saat membaca).
+
+**`PROFILES.phone` (Baru, 5 Okt 2026 — nullable, migration terpisah 1.1d):** form Daftar di desain final meminta nomor WhatsApp, tetapi kolomnya belum ada di migration 1.1. Dipisah dari 1.1c (default tier) dengan sengaja supaya dua perubahan trigger `handle_new_user` tidak tercampur. Trigger membaca `raw_user_meta_data ->> 'phone'`. Column-level privilege 1.1 tidak berubah: `phone` **tidak** ikut `grant update` ke `authenticated` kecuali diputuskan terpisah.
+
+**Kolom dan keputusan yang sengaja ditunda (keputusan pemilik proyek, 5 Okt 2026 — dicatat di sini supaya tidak dikira kelupaan):** (a) `rooms.created_at` — **tidak ada** di migration 1.1b (hanya `properties.created_at`); dibutuhkan metrik Ekspansi (§6), ditambahkan lewat migration terpisah bersama `expenses` (2.7), **setelah** 1.1b dikonfirmasi pemilik (verifikasi RLS `properties`/`rooms` oleh pemilik) — 1.1b tidak disentuh sebelum itu; (b) `payments.paid_at` — metrik Income butuh tanggal bayar (bukan `due_date`), diputuskan **sebelum 1.13**; (c) definisi "kamar terisi" untuk metrik Okupansi (§6), ditunda ke 2.10; (d) `unique(tenant_id)` pada `pro_interest_signals`.
 
 Catatan: `LEADS` sengaja **tidak** punya `tenant_id` — tabel ini milik landing page (pre-auth), bukan bagian skema aplikasi tenant. **Tapi tetap wajib RLS aktif (Diperbaiki — celah nyata di versi sebelumnya):** anon key Supabase bersifat publik (tertanam di kode client), jadi tabel tanpa RLS bisa dibaca/ditulis siapa pun yang tahu anon key. Policy untuk `leads`: **hanya `INSERT` untuk role `anon`/`authenticated`, tidak ada `SELECT`** — Anda membaca isinya lewat Supabase Studio (yang pakai koneksi terpisah, bukan lewat REST API dengan anon key), bukan lewat endpoint publik.
 
@@ -460,7 +500,7 @@ Catatan tambahan: `SUBSCRIPTION_REQUESTS` punya `tenant_id`, dan tenant biasa **
 
 `PLANS` adalah tabel referensi kecil (2 baris: `free`, `pro`) — **RLS tetap aktif** (Diperbaiki, sama alasannya dengan `leads`): policy **hanya `SELECT`** untuk `anon`/`authenticated` (dibaca publik di halaman `/pilih-paket`, termasuk sebelum login kalau harga ditampilkan di landing page), **tidak ada `INSERT`/`UPDATE`/`DELETE`** untuk role itu — harga hanya diubah lewat migration/Supabase Studio, bukan lewat API.
 
-**Arti `plans.is_default` (Diperjelas — sebelumnya ambigu):** kolom ini murni **hint UI** untuk menandai kartu mana yang ditampilkan sebagai pilihan yang disorot/default di halaman `/pilih-paket` (lihat `docs/StyleGuide.md` §4a) — **tidak ada hubungan** dengan `profiles.subscription_tier` yang defaultnya `NULL` (penanda "belum pilih apa pun", lihat §3a). Dua konsep berbeda: satu tentang tampilan pricing page, satu tentang state onboarding user.
+**Arti `plans.is_default` (Diperjelas — sebelumnya ambigu):** kolom ini murni **hint UI** untuk menandai kartu mana yang ditampilkan sebagai pilihan yang disorot/default di halaman `/pilih-paket` (lihat `docs/StyleGuide.md` §4a) — **tidak ada hubungan** dengan `profiles.subscription_tier` yang defaultnya **`'free'`** (Direvisi, 4 Okt 2026 — bukan lagi `NULL`, lihat §3a). Dua konsep berbeda: satu tentang tampilan pricing page, satu tentang tier aktif user.
 
 ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat implementasi masing-masing fitur — dokumen ini memberi kerangka, bukan DDL final.
 
@@ -474,7 +514,7 @@ ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat imp
 
 ## 6. Feature Gating (Tier Langganan — **P0** sejak revisi ini, bukan P1)
 
-**[FIX, direvisi]** Karena gerbang paket sekarang wajib sebelum dashboard (§3a), gating bukan lagi penyempurnaan P1 — sebagian harus sudah aktif sejak dashboard pertama kali dibuka. Kerangka gating mengikuti matriks fitur di `docs/PRD.md` §5b: **kombinasi** batasan kuota (untuk fitur inti) dan penguncian modul total (untuk fitur P1). Kedua pola harus dicek di level data/API, bukan cuma disembunyikan di UI.
+**[FIX, direvisi lagi 4 Okt 2026]** Alasan gating ini P0 justru **lebih kuat** sejak gerbang wajib pilih-paket dihapus (§3a) — bukan lebih lemah: dulu rasionalnya "gerbang sudah wajib sebelum dashboard, jadi gating harus aktif sejak awal"; sekarang setiap owner otomatis masuk ke dashboard tier Free sejak detik pertama signup (tidak ada "transisi" yang bisa dijadikan titik penundaan), jadi gating data/API untuk tier Free **wajib sudah aktif sebelum dashboard pertama kali dibuka ke siapa pun**, bukan penyempurnaan yang bisa ditunda. Kerangka gating mengikuti matriks fitur di `docs/PRD.md` §5b: **kombinasi** batasan kuota (untuk fitur inti) dan penguncian modul total (untuk fitur P1). Kedua pola harus dicek di level data/API, bukan cuma disembunyikan di UI.
 
 **Peringatan penting soal cara menulis policy gating (Diperbaiki — bug keamanan nyata di versi sebelumnya):** Postgres menggabungkan beberapa policy **PERMISSIVE** (default) dengan **OR**, bukan AND. Contoh sebelumnya di dokumen ini menulis `pro_only_assets` sebagai policy permissive terpisah dari `tenant_isolation` — akibatnya, kalau digabung, seorang user Pro (tenant mana pun) **lolos policy itu berdasarkan `OR`**, sehingga secara tidak sengaja bisa melihat aset **semua tenant**, bukan cuma miliknya. Ini kebocoran data lintas-tenant, bukan cuma bug kecil. Perbaikannya: policy gating fitur **wajib ditulis sebagai `AS RESTRICTIVE`**, yang digabung dengan **AND** terhadap hasil semua policy permissive (termasuk `tenant_isolation` di §3) — jadi baris hanya terlihat kalau **tenant cocok DAN syarat tier terpenuhi**, bukan salah satu saja.
 
@@ -509,7 +549,23 @@ create policy "pro_only_assets" on assets
   using (
     (select subscription_tier from profiles where id = auth.uid()) = 'pro'
   );
+
+-- pola sama untuk expenses (Ditambahkan, 4 Okt 2026, docs/PRD.md §5d) — modul Dashboard Analitik
+-- juga full-lock Pro only, bukan kuota
+create policy "pro_only_expenses" on expenses
+  as restrictive
+  for all
+  using (
+    (select subscription_tier from profiles where id = auth.uid()) = 'pro'
+  );
 ```
+
+**Dashboard Analitik — agregasi, bukan tabel baru (Baru, 4 Okt 2026, lihat `docs/PRD.md` §5d):** 4 sub-metrik (income, expense, okupansi, ekspansi) dihitung **query-time** dari tabel yang sudah ada + `expenses`, bukan materialized view — skala solo-dev/portofolio tidak butuh pre-agregasi:
+- **Income/Expense bulanan:** `sum(amount) group by date_trunc('month', <due_date|expense_date>)`, difilter `property_id` yang dipilih via `PropertySelect`. RLS yang sudah ada (tenant_isolation + pro_only di atas) otomatis membatasi hasil tanpa perlu logic tambahan di query. **[DITUNDA, sebelum 1.13 — keputusan pemilik proyek 5 Okt 2026]** apakah income dihitung per `due_date` atau per tanggal bayar sebenarnya (butuh kolom `payments.paid_at`) diputuskan sebelum CRUD pembayaran dibangun, karena menentukan skema `payments`.
+- **Okupansi bulanan:** untuk setiap bulan, `count(rooms terisi pada bulan itu) / count(total rooms)` — "terisi pada bulan itu" berarti ada baris `occupancies` dengan `start_date <= akhir_bulan AND (end_date IS NULL OR end_date >= awal_bulan)`. Ini **alasan `end_date` wajib ada** (§4) — tanpa itu, query ini tidak bisa dijawab untuk bulan-bulan selain hari ini. **[DITUNDA ke 2.10 — keputusan pemilik proyek 5 Okt 2026]** definisi "terisi" di atas belum dipertajam untuk kasus tepi; dipertegas saat 2.10 dibangun, bukan sekarang.
+- **Ekspansi bulanan:** `count(properties/rooms dengan created_at <= akhir_bulan)`, kumulatif. Butuh `created_at` di `properties`/`rooms`: `properties.created_at` sudah ada (1.1b), tetapi **`rooms.created_at` belum ada** — ditambahkan lewat migration terpisah bersama `expenses` (2.7), lihat §4 (keputusan pemilik proyek, 5 Okt 2026).
+
+**Charting — DIPUTUSKAN: komponen SVG kustom, tanpa library (keputusan pemilik proyek, 5 Okt 2026 — menggantikan "belum dipilih" sebelumnya):** chart Dashboard Analitik (2.10) ditulis sebagai komponen React + SVG sendiri, **tanpa dependency baru** — jadi tidak ada yang perlu diajukan per `.claude/rules/workflow.md` §2 (task 2.9 ditutup). Sebelum menulis kode chart **wajib** membaca skill `dataviz`; palet warna **turunan token StyleGuide yang sudah ada** (lime/hutan/status), diukur di kedua tema — jangan mengarang palet baru khusus chart.
 
 Kalau gating hanya di UI (tombol/menu disembunyikan tapi API tetap terima request), sistem tidak bisa disebut kredibel sebagai SaaS freemium — user teknis akan mengecek ini lewat DevTools/API call langsung. **Setiap policy gating baru yang ditambahkan HARUS dites eksplisit untuk dua arah:** (a) user Pro tenant A tidak bisa melihat data tenant B meski sama-sama Pro, (b) user Free tenant A benar-benar terblokir dari modul Pro-only. Bug OR di atas baru ketahuan karena diperiksa dari sudut (a) — skill `verify-rls-isolation` perlu diperluas mencakup uji silang tier x tenant ini, bukan cuma tenant x tenant. **Catatan:** angka kuota spesifik (1 properti, 5 kamar) adalah placeholder dari `docs/PRD.md` §5b — dikonfigurasi sebagai nilai yang mudah diubah (bukan hardcode berulang di banyak query), karena angka ini eksplisit ditandai `[HIPOTESIS]` dan kemungkinan berubah.
 
@@ -526,3 +582,4 @@ Kalau gating hanya di UI (tombol/menu disembunyikan tapi API tetap terima reques
 - `docs/PRD.md` — spek produk, fitur, target user.
 - `docs/StyleGuide.md` — arahan visual.
 - `docs/TASKS.md` — roadmap build, dimulai dari Landing Page.
+- `docs/design/` — salinan dokumen paket desain final (peta repo ↔ paket, penyimpangan, koreksi: `docs/design/README.md`).

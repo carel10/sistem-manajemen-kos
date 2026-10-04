@@ -29,7 +29,7 @@ Aturan umum:
 
 | State | Tampilan |
 |---|---|
-| hover | border `--border` (gelap: `--text-secondary`) |
+| hover | ~~border `--border` (gelap: `--text-secondary`)~~ border `--text-secondary` di kedua tema. **[Catatan proyek, 5 Okt 2026]** `--border` di hover dibuat saat batas isian terang masih transparan; dengan `--input-border` `#7D8574` yang kini terlihat (3,83:1) hover `--border` justru memudarkan batas (→ 1,27:1). Hover memakai `--text-secondary` seperti tema gelap (7,05:1 terang, 7,69:1 gelap) |
 | fokus | bg surface, border `--border`, outline 2px `--primary` offset 2px |
 | error | border `--danger`, bg surface, `aria-invalid="true"`, `aria-describedby` = id help + id error; outline fokus berwarna `--danger` |
 | nonaktif | bg `--locked-bg`, teks `--locked-text`, tanpa shadow |
@@ -93,7 +93,7 @@ Aturan umum:
 
 ## PropertySelect (`.psel`)
 
-- Native `<select>` dengan appearance none, tinggi 44, border `--border` (gelap: `--input-border`), chevron-down di kanan. **[Catatan proyek, 5 Okt 2026 — TERBUKA, belum diputuskan]** di tema terang `--border` (#E1E6D6) hanya ≈1,3:1 terhadap putih, jadi batas `<select>` gagal WCAG 1.4.11 persis seperti temuan A3 untuk isian teks. Usulan: pakai `--input-border` di kedua tema. Putuskan saat komponen ini dibangun.
+- Native `<select>` dengan appearance none, tinggi 44, border `--border` (gelap: `--input-border`), chevron-down di kanan. **[Catatan proyek, 5 Okt 2026 — DIPUTUSKAN pemilik proyek]** border memakai `--input-border` di **kedua** tema: `--border` (#E1E6D6) hanya 1,27:1 terhadap putih dan gagal WCAG 1.4.11 persis seperti temuan A3 untuk isian teks. Kontras diukur ulang untuk pasangan `<select>` sendiri (isian `surface` di atas sidebar `surface`): terang 3,83:1, gelap 3,63:1 — rincian di `docs/design/README.md`.
 - Label `sr-only` "Pilih properti".
 - State kosong: nonaktif, teks "Belum ada properti".
 
