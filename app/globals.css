@@ -1,66 +1,236 @@
 @import "tailwindcss";
 
 /*
- * Design tokens from docs/StyleGuide.md. Tailwind's default color, font-size,
- * radius and shadow scales are cleared so only StyleGuide tokens exist as
- * utilities (StyleGuide §2: no ad-hoc colors per feature). Spacing keeps
- * Tailwind's default 4px-based scale (StyleGuide §4).
+ * manaKos design tokens (task 0.1a). Values: docs/StyleGuide.md §2/§3a. The rules behind them:
+ * docs/design/01-design-system.md and 04-tema-gelap.md. Tailwind v4 has no tailwind.config.js,
+ * so every token lives in this file, in three layers:
+ *   1. @theme              static: clears Tailwind's default scales, plus font, type scale, radius.
+ *   2. :root / [data-theme="dark"]   the color VALUES per theme, as plain CSS variables.
+ *   3. @theme inline       maps those variables to utilities (bg-surface, text-primary, ...).
+ *                          "inline" makes a utility use var(--surface) directly, which is what lets
+ *                          one class follow the theme without a rebuild.
+ * No raw hex in components. A new color pair must be measured in BOTH themes (StyleGuide §3a rule 5).
  */
+
+/* dark: is active when <html data-theme="dark"> (not a media query, so a manual choice wins) */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @theme {
+  /* Only StyleGuide tokens exist as utilities (StyleGuide §1: no ad-hoc colors per feature). */
   --color-*: initial;
   --text-*: initial;
   --radius-*: initial;
   --shadow-*: initial;
 
-  /* White text on Primary buttons (§4) */
-  --color-white: #FFFFFF;
-
-  /* Base (§2) */
-  --color-background: #FAFAF9;
-  --color-surface: #FFFFFF;
-  --color-border: #E5E4E1;
-  --color-text-primary: #1C1B1A;
-  --color-text-secondary: #6B6A66;
-
-  /* Primary (§2) */
-  --color-primary: #2A6F5C;
-  --color-primary-hover: #215A4A;
-  --color-primary-subtle: #E8F2EE;
-
-  /* Data status (§2) */
-  --color-success: #3B7A3B;
-  --color-success-subtle: #E9F3E9;
-  --color-warning: #B8790A;
-  --color-warning-subtle: #FCF0DF;
-  /* Text on warning-subtle badges: `warning` there fails WCAG AA (§2) */
-  --color-warning-text-strong: #8A5A08;
-  --color-danger: #B8332A;
-  --color-danger-subtle: #FBEAE8;
-
-  /* Access status (§4a) */
-  --color-locked-bg: #F1F0EE;
-  --color-locked-text: #8A8883;
-
-  /* Typography (§3) */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
+  /* Type scale (StyleGuide §3). Hero is 32px below 1024 and display 24px below 768: use text-display lg:text-hero. */
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 1.15;
+  --text-hero--font-weight: 600;
+  --text-hero--letter-spacing: -0.02em;
   --text-display: 2rem;
+  --text-display--line-height: 1.15;
   --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
   --text-h1: 1.5rem;
+  --text-h1--line-height: 1.25;
   --text-h1--font-weight: 600;
+  --text-h1--letter-spacing: -0.01em;
   --text-h2: 1.125rem;
+  --text-h2--line-height: 1.35;
   --text-h2--font-weight: 600;
+  --text-lead: 1rem;
+  --text-lead--line-height: 1.5;
+  --text-lead--font-weight: 400;
   --text-body: 0.875rem;
+  --text-body--line-height: 1.5;
   --text-body--font-weight: 400;
+  --text-label-form: 0.875rem;
+  --text-label-form--line-height: 1.25rem;
+  --text-label-form--font-weight: 600;
   --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
   --text-label--font-weight: 500;
-  --text-numeric: 0.875rem;
-  --text-numeric--font-weight: 500;
 
-  /* Radius: badges & inputs (sm), cards & buttons (lg) (§4) */
+  /* Radius: badge, chip, <mark> (sm); card, button, input, photo, menu, modal (lg). Avatars use rounded-full. */
   --radius-sm: 0.25rem;
   --radius-lg: 0.5rem;
+}
 
-  /* The single card shadow level (§4) */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+/* ---------- Light theme: "Stabilo di buku kas" ---------- */
+:root {
+  --background: #F6F8F1;
+  --surface: #FFFFFF;
+  --border: #E1E6D6;
+  --text-primary: #050607;
+  --text-secondary: #545B4C;
+
+  --primary: #23430C; /* forest: links, focus ring, checkmark, eyebrow */
+  --primary-hover: #183008;
+  --primary-subtle: #EEF7D6;
+
+  --action: #B8E351; /* lime: primary button, active pill, one highlight per screen */
+  --action-hover: #A6D33A;
+  --on-action: #050607; /* text on lime is ALWAYS ink */
+  --input-bg: #F2F5EC;
+  /* 3.83:1 on surface (WCAG 1.4.11). Approved by the project owner on 5 Oct 2026 (finding A3);
+     the design package left it as `transparent` (about 1.1:1, fails). */
+  --input-border: #7D8574;
+
+  --ink: #050607;
+  --on-ink-muted: #A9B0A0;
+  --forest-mid: #3E6E1A; /* illustrations only, never text */
+
+  --band: #050607; /* CTA band */
+  --on-band: #FFFFFF;
+  --on-band-muted: #A9B0A0;
+  --scrim: rgb(0 0 0 / 0.4);
+
+  --success: #3B7A3B;
+  --success-subtle: #E9F3E9;
+  --warning: #B8790A;
+  --warning-subtle: #FCF0DF;
+  --warning-text-strong: #8A5A08;
+  --danger: #B8332A;
+  --danger-subtle: #FBEAE8;
+  --locked-bg: #EEF1E8;
+  --locked-text: #767D6C;
+
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  color-scheme: light;
+}
+
+/* ---------- Dark theme: "Hutan Malam" (not an inversion: the same components, other token values) ---------- */
+[data-theme="dark"] {
+  --background: #10140E;
+  --surface: #171D14;
+  --border: #2C3627;
+  --text-primary: #EEF2E8;
+  --text-secondary: #A9B0A0;
+
+  --primary: #C6E880; /* light forest takes the text role: #23430C is only 1.7:1 on dark */
+  --primary-hover: #DDF2AE;
+  --primary-subtle: #23430C; /* forest becomes a background */
+
+  --action: #B8E351;
+  --action-hover: #C9EC6E;
+  --on-action: #050607;
+  --input-bg: #1E261A;
+  --input-border: #68785D; /* 3.63:1 on surface */
+
+  --ink: #050607;
+  --on-ink-muted: #A9B0A0;
+  --forest-mid: #5C8F2E;
+
+  --band: #23430C;
+  --on-band: #FFFFFF;
+  --on-band-muted: #C9D6B8;
+  --scrim: rgb(0 0 0 / 0.6);
+
+  --success: #8FD49B;
+  --success-subtle: #173322;
+  --warning: #F2C46B;
+  --warning-subtle: #3A2C0D;
+  --warning-text-strong: #F2C46B;
+  --danger: #FF9B8F;
+  --danger-subtle: #3D1A16;
+  --locked-bg: #222A1E;
+  --locked-text: #7F8877;
+
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
+/*
+ * Variables -> utilities. Examples: bg-background, bg-surface, border-border, text-text-primary,
+ * text-text-secondary, text-primary (= forest / light forest: links), bg-action text-on-action,
+ * bg-band text-on-band, bg-success-subtle text-success, rounded-lg (8px), rounded-sm (4px), shadow-sm.
+ * Note: "text-primary" is the COLOR --primary (links), not the main text; the main text is text-text-primary.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-on-action: var(--on-action);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+  --color-ink: var(--ink);
+  --color-on-ink-muted: var(--on-ink-muted);
+  --color-forest-mid: var(--forest-mid);
+  --color-band: var(--band);
+  --color-on-band: var(--on-band);
+  --color-on-band-muted: var(--on-band-muted);
+  --color-scrim: var(--scrim);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text-strong: var(--warning-text-strong);
+  --color-danger: var(--danger);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-locked-bg: var(--locked-bg);
+  --color-locked-text: var(--locked-text);
+
+  /* The single shadow level. Named --elevation-sm at the source so it does not reference itself. */
+  --shadow-sm: var(--elevation-sm);
+}
+
+/*
+ * Base styles go in @layer base on purpose. An UNLAYERED rule beats every layered utility whatever its
+ * specificity, so e.g. an unlayered `a { color: inherit }` would override text-on-action on an <a> button
+ * (finding A1 of the design package, which was about specificity in plain CSS). Tailwind's preflight
+ * already resets <a> colour inside the base layer, so there is deliberately no <a> rule here.
+ */
+@layer base {
+  html {
+    background-color: var(--background);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .band :focus-visible {
+    outline-color: var(--action);
+  }
+}
+
+/* Numbers and dates: aligned digits, medium weight (StyleGuide §3 "numeric") */
+@utility num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/*
+ * Logo and illustration pairs: both versions are rendered and CSS shows one (no flash on hydration).
+ * These three rules MUST stay unlayered: `.th-d { display: none }` has to beat utilities such as `block`
+ * in the light theme, and `revert-layer` in the dark theme then falls back to whatever the utilities
+ * (or the browser default) say.
+ */
+.th-d {
+  display: none;
+}
+[data-theme="dark"] .th-l {
+  display: none;
+}
+[data-theme="dark"] .th-d {
+  display: revert-layer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

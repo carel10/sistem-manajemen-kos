@@ -22,7 +22,7 @@ export function LeadForm() {
     return (
       <p
         role="status"
-        className="mt-8 max-w-md rounded-lg border border-border bg-surface p-4 text-body shadow-card"
+        className="mt-8 max-w-md rounded-lg border border-border bg-surface p-4 text-body shadow-sm"
       >
         Terima kasih! Kami akan menghubungimu lewat kontak ini saat Sistem Manajemen
         Kos siap dicoba.
@@ -130,7 +130,7 @@ export function LeadForm() {
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 rounded-lg bg-primary px-6 py-3 text-body font-medium text-white hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+        className="mt-6 rounded-lg bg-action px-6 py-3 text-body font-medium text-on-action hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
       >
         {pending ? "Mengirim…" : "Daftar minat"}
       </button>
