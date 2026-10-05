@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { CheckCircle } from "@/components/icons";
 import { Alert } from "@/components/ui/Alert";
@@ -28,7 +28,22 @@ type LeadAction = (previous: LeadFormState, formData: FormData) => Promise<LeadF
  * waiting for the policy text), so the link would be dead.
  */
 export function LeadForm({ action = submitLead }: { action?: LeadAction }) {
-  const [state, dispatch, pending] = useActionState(action, initialState);
+  // Double-submit guard. `pending` is still false inside the task that dispatched, so two submit events in ONE task
+  // (form.requestSubmit() twice) would both get through a `pending` check, and React's action queue would then run both,
+  // one after the other, and send two requests (docs/TASKS.md 0.4a, round-6 probes). This ref is checked and set
+  // synchronously in handleSubmit and released when the action settles, whatever the outcome.
+  const inFlight = useRef(false);
+  const guardedAction = useCallback<LeadAction>(
+    async (previous, formData) => {
+      try {
+        return await action(previous, formData);
+      } finally {
+        inFlight.current = false;
+      }
+    },
+    [action],
+  );
+  const [state, dispatch, pending] = useActionState(guardedAction, initialState);
   // Both fields are controlled AND the form is submitted through a transition instead of <form action={...}>: with
   // the `action` prop React 19 calls form.reset() when the action finishes, which unticked the consent checkbox
   // (while this state still said "ticked") after every server error. Found by testing the failure path in 0.4a.
@@ -57,6 +72,10 @@ export function LeadForm({ action = submitLead }: { action?: LeadAction }) {
       return;
     }
     setClientError(undefined);
+    // A second submit while one is in flight carries this very form: drop it. Set only after the client validation
+    // passed, so a rejected submit never locks the form.
+    if (inFlight.current) return;
+    inFlight.current = true;
     const formData = new FormData(form);
     // The channel tag from ?src= travels with the request, so the page itself stays static.
     formData.set("src", new URLSearchParams(window.location.search).get("src") ?? "");
