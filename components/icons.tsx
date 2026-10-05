@@ -34,6 +34,22 @@ export const ChevronDown = icon(<path d="m6 9 6 6 6-6" />);
 export const ChevronRight = icon(<path d="m9 6 6 6-6 6" />);
 export const ArrowRight = icon(<path d="M5 12h14M13 6l6 6-6 6" />);
 
+// Forms (components/ui/{TextField,Button,Alert}.tsx and the interest form). Small ones are drawn at stroke 2.
+export const Alert = icon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 8v4M12 16h.01" />
+  </>,
+);
+export const CheckCircle = icon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m8.5 12 2.5 2.5 4.5-5" />
+  </>,
+);
+// Three quarters of a circle; the caller rotates it (animate-spin) while a button is loading.
+export const Spinner = icon(<path d="M12 3a9 9 0 1 0 9 9" />);
+
 export const Lock = icon(
   <>
     <rect x="4" y="11" width="16" height="10" rx="2" />

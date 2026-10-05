@@ -3,17 +3,9 @@ import type { ReactNode } from "react";
 
 import { ArrowRight } from "@/components/icons";
 
-type Variant = "primary" | "secondary";
+import { BUTTON_BASE, BUTTON_VARIANT, type ButtonVariant } from "./button-styles";
 
-// Primary: lime with ink text (never white on lime). Secondary: surface with an ink border.
-const VARIANT: Record<Variant, string> = {
-  primary:
-    "border-action bg-action text-on-action hover:border-action-hover hover:bg-action-hover active:translate-y-px",
-  secondary:
-    "border-text-primary bg-surface text-text-primary hover:bg-background active:translate-y-px active:bg-locked-bg",
-};
-
-/** A link that looks like a button (min-height 48, radius 8). Use <button> for actions, this for navigation. */
+/** A link that looks like a button (min-height 48, radius 8). Use <Button> for actions, this for navigation. */
 export function ButtonLink({
   href,
   variant = "primary",
@@ -23,7 +15,7 @@ export function ButtonLink({
   children,
 }: {
   href: string;
-  variant?: Variant;
+  variant?: ButtonVariant;
   block?: boolean;
   /** 16px side padding instead of 20 (the navbar button). */
   compact?: boolean;
@@ -33,7 +25,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border text-body leading-none font-semibold whitespace-nowrap transition-[background-color,border-color,color] duration-150 ease-out ${compact ? "px-4" : "px-5"} ${VARIANT[variant]} ${block ? "w-full" : ""} ${className}`}
+      className={`${BUTTON_BASE} ${compact ? "px-4" : "px-5"} ${BUTTON_VARIANT[variant]} ${block ? "w-full" : ""} ${className}`}
     >
       {children}
     </Link>

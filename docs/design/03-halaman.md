@@ -19,7 +19,7 @@ Data ini **fiktif dan hanya untuk mockup**. Jangan di-hardcode di produk.
 | `/` | Landing (dua mode, lihat di bawah) |
 | `/masuk` | Masuk |
 | `/daftar` | Daftar (`?minat=pro` dari kartu Pro) |
-| `/lupa-kata-sandi` | dirujuk tautan "Lupa kata sandi?"; belum didesain |
+| `/lupa-kata-sandi` | dirujuk tautan "Lupa kata sandi?"; belum didesain. **[Catatan proyek, 5 Okt 2026]** tidak dibangun di v1 dan tautannya tidak dipasang (keputusan pemilik proyek, `docs/TASKS.md` 1.1a) |
 | `/kebijakan-privasi` | dirujuk dari form; belum didesain |
 | `/dashboard` | Dashboard |
 | `/dashboard/kamar`, `/penghuni`, `/pembayaran`, `/pengaturan` | item navigasi; belum didesain, pakai shell yang sama |
@@ -94,7 +94,7 @@ Gerak: section muncul sekali saat discroll (lihat 01 §6).
   - Isi kolom: logo stacked 120 (96 di <768) yang menaut ke `/`, H1 "Masuk ke manaKos", sub "Selamat datang kembali. Kelola kosmu dari satu tempat."
 - **Form:**
   - Wadah alert kredensial (`aria-live="assertive"`).
-  - Field: Alamat Email, lalu Kata Sandi (+ "Lupa kata sandi?" di kanan label).
+  - Field: Alamat Email, lalu Kata Sandi (+ "Lupa kata sandi?" di kanan label). **[Catatan proyek, 5 Okt 2026]** tautan "Lupa kata sandi?" **tidak dipasang** di v1: label Kata Sandi tanpa aksi di kanan (keputusan pemilik proyek, `docs/TASKS.md` 1.1a).
   - Tombol primary block "Masuk" (loading "Memproses…").
   - Di bawah form: "Belum punya akun? **Daftar Sekarang**".
 - **Validasi saat submit** (pesan di `kode/lib/validators.ts`):
@@ -153,4 +153,4 @@ Gerak: section muncul sekali saat discroll (lihat 01 §6).
 
 ## E. Halaman yang belum didesain
 
-Lupa kata sandi, Kebijakan Privasi, Kamar, Penghuni, Pembayaran, Pengaturan, dan Tambah Properti belum didesain. Bangun dengan shell, komponen, dan token yang sama. Jangan mengarang gaya baru; tandai bagian yang butuh keputusan desain.
+Lupa kata sandi, Kebijakan Privasi, Kamar, Penghuni, Pembayaran, Pengaturan, dan Tambah Properti belum didesain. Bangun dengan shell, komponen, dan token yang sama. Jangan mengarang gaya baru; tandai bagian yang butuh keputusan desain. **[Catatan proyek, 5 Okt 2026]** "Lupa kata sandi" dikecualikan: tidak dibangun di v1.

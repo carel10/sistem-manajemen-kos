@@ -3,6 +3,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 import {
+  contactProblem,
+  contactProblemMessage,
   LEAD_MESSAGES,
   normalizeContact,
   normalizeSource,
@@ -21,12 +23,14 @@ export async function submitLead(
 
   // Re-validated here even though the form checks first: consent (UU PDP) and
   // the contact format must hold for requests that skip the client entirely.
-  const contact = normalizeContact(String(formData.get("contact") ?? ""));
+  const rawContact = String(formData.get("contact") ?? "");
+  const contact = normalizeContact(rawContact);
   const consented = formData.get("consent") === "on";
   if (!contact || !consented) {
+    const problem = contactProblem(rawContact);
     return {
       status: "error",
-      contactError: contact ? undefined : LEAD_MESSAGES.invalidContact,
+      contactError: problem ? contactProblemMessage(problem) : undefined,
       consentError: consented ? undefined : LEAD_MESSAGES.consentRequired,
     };
   }

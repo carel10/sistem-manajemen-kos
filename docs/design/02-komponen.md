@@ -35,7 +35,7 @@ Aturan umum:
 | nonaktif | bg `--locked-bg`, teks `--locked-text`, tanpa shadow |
 
 - Password: tombol ikon mata di kanan, 44×44, `aria-label` "Tampilkan kata sandi" / "Sembunyikan kata sandi", `aria-pressed` mengikuti state, ikon eye ↔ eye-off. Input diberi padding kanan 52px.
-- Label bisa punya aksi di kanan, mis. "Lupa kata sandi?" (ghost plain), dalam baris `.field-row`.
+- Label bisa punya aksi di kanan, mis. "Lupa kata sandi?" (ghost plain), dalam baris `.field-row`. **[Catatan proyek, 5 Okt 2026]** v1 tidak memakai aksi ini: tautan "Lupa kata sandi?" tidak dipasang (`docs/TASKS.md` 1.1a).
 
 ## Checkbox (`.check`)
 

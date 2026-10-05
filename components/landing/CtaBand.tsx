@@ -52,12 +52,8 @@ export function CtaBand() {
               manaKos masih dalam pengembangan. Tinggalkan nomor WhatsApp atau email, dan kami kabari saat sudah bisa dipakai.
             </p>
           </div>
-          {/* A light card inside the dark band, so the existing form (task 0.4) stays readable. The form itself is
-              restyled in 0.4a; until then its own outer margin and max width are neutralised here. */}
-          <div
-            data-band-card
-            className="rounded-lg bg-surface p-6 text-text-primary shadow-sm md:col-[7/13] lg:col-[8/13] [&>*]:mt-0 [&>*]:max-w-none"
-          >
+          {/* The design's .form-card: a surface card inside the dark band (its focus ring stays `primary`, see globals.css). */}
+          <div data-band-card className="rounded-lg bg-surface p-6 text-text-primary shadow-sm md:col-[7/13] lg:col-[8/13]">
             <LeadForm />
           </div>
         </Container>

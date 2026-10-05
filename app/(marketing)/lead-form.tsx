@@ -1,139 +1,150 @@
 "use client";
 
-import { useActionState, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 
-import { LEAD_MESSAGES, normalizeContact, type LeadFormState } from "@/lib/leads";
+import { CheckCircle } from "@/components/icons";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { TextField } from "@/components/ui/TextField";
+import { contactProblem, contactProblemMessage, type LeadFormState } from "@/lib/leads";
 
 import { submitLead } from "./actions";
 
 const initialState: LeadFormState = { status: "idle" };
 
-type FieldErrors = { contact?: string; consent?: string };
+// UU PDP consent. Owner decision 5 Oct 2026 (option A): the approved sentence with only the product name changed,
+// NOT the design package's wording. Keep it in step with docs/TASKS.md 0.4a if it ever changes.
+const CONSENT_TEXT = "Saya setuju kontak ini disimpan dan dipakai untuk menghubungi saya seputar manaKos.";
 
-export function LeadForm() {
-  const [state, formAction, pending] = useActionState(submitLead, initialState);
-  // Controlled on purpose: React resets uncontrolled fields after every action,
-  // which would wipe what the visitor typed when the server rejects it.
+type LeadAction = (previous: LeadFormState, formData: FormData) => Promise<LeadFormState>;
+
+/**
+ * Interest form of the pre-launch band (docs/design/03-halaman.md §A.9, copy: 07-copy-deck.md). The rules and the
+ * messages come from lib/leads.ts, the same module the server action validates with. `action` is injectable so the
+ * states can be exercised without a database; the page always uses the real server action.
+ *
+ * The design's "Baca Kebijakan Privasi" link is NOT here: /kebijakan-privasi does not exist yet (docs/TASKS.md 0.3b,
+ * waiting for the policy text), so the link would be dead.
+ */
+export function LeadForm({ action = submitLead }: { action?: LeadAction }) {
+  const [state, dispatch, pending] = useActionState(action, initialState);
+  // Both fields are controlled AND the form is submitted through a transition instead of <form action={...}>: with
+  // the `action` prop React 19 calls form.reset() when the action finishes, which unticked the consent checkbox
+  // (while this state still said "ticked") after every server error. Found by testing the failure path in 0.4a.
   const [contact, setContact] = useState("");
   const [consent, setConsent] = useState(false);
-  const [clientErrors, setClientErrors] = useState<FieldErrors | null>(null);
+  const [clientError, setClientError] = useState<string | undefined>(undefined);
+  // The server response the visitor has already reacted to (typing or ticking hides its messages until a new one arrives).
+  const [dismissed, setDismissed] = useState<LeadFormState | null>(null);
 
-  if (state.status === "success") {
-    return (
-      <p
-        role="status"
-        className="mt-8 max-w-md rounded-lg border border-border bg-surface p-4 text-body shadow-sm"
-      >
-        Terima kasih! Kami akan menghubungimu lewat kontak ini saat Sistem Manajemen
-        Kos siap dicoba.
-      </p>
-    );
-  }
+  if (state.status === "success") return <Success />;
 
-  const serverErrors = state.status === "error" ? state : undefined;
-  const contactError = clientErrors ? clientErrors.contact : serverErrors?.contactError;
-  const consentError = clientErrors ? clientErrors.consent : serverErrors?.consentError;
-  const formError = clientErrors ? undefined : serverErrors?.formError;
+  const serverError = state.status === "error" && dismissed !== state ? state : undefined;
+  const contactError = clientError ?? serverError?.contactError;
+  // The button stays disabled until consent is ticked, so a consent error can only come from a request that skipped
+  // this form; it is shown with the other form-level errors.
+  const alertMessage = serverError?.formError ?? serverError?.consentError;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const form = event.currentTarget;
-    const errors: FieldErrors = {
-      contact: normalizeContact(contact) ? undefined : LEAD_MESSAGES.invalidContact,
-      consent: consent ? undefined : LEAD_MESSAGES.consentRequired,
-    };
-    if (errors.contact || errors.consent) {
-      event.preventDefault();
-      setClientErrors(errors);
-      const firstInvalid = form.elements.namedItem(errors.contact ? "contact" : "consent");
-      (firstInvalid as HTMLInputElement).focus();
+    if (!consent) return;
+    const problem = contactProblem(contact);
+    if (problem) {
+      setClientError(contactProblemMessage(problem));
+      (form.elements.namedItem("contact") as HTMLInputElement).focus();
       return;
     }
-    setClientErrors(null);
-    // The channel tag travels with the form, so the page itself stays static.
-    const source = form.elements.namedItem("src") as HTMLInputElement;
-    source.value = new URLSearchParams(window.location.search).get("src") ?? "";
+    setClientError(undefined);
+    const formData = new FormData(form);
+    // The channel tag from ?src= travels with the request, so the page itself stays static.
+    formData.set("src", new URLSearchParams(window.location.search).get("src") ?? "");
+    startTransition(() => dispatch(formData));
   }
 
   return (
-    <form
-      action={formAction}
-      onSubmit={handleSubmit}
-      noValidate
-      aria-labelledby="lead-form-intro"
-      className="mt-8 max-w-md"
-    >
-      <p id="lead-form-intro" className="text-body">
-        Sedang kami siapkan. Tinggalkan kontakmu, kami kabari saat sudah bisa dicoba.
-      </p>
+    <form onSubmit={handleSubmit} noValidate aria-label="Form Daftar Minat" className="flex flex-col gap-4">
+      <h3 className="text-h2">Daftar Minat</h3>
 
-      <div className="mt-4">
-        <label htmlFor="contact" className="text-label text-text-secondary">
-          Nomor WhatsApp atau email
-        </label>
-        <input
-          id="contact"
-          name="contact"
-          type="text"
-          required
-          value={contact}
-          onChange={(event) => setContact(event.target.value)}
-          aria-invalid={contactError ? true : undefined}
-          aria-describedby={contactError ? "contact-help contact-error" : "contact-help"}
-          className="mt-1 block w-full rounded-sm border border-border bg-surface px-3 py-2 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-subtle aria-invalid:border-danger"
-        />
-        <p id="contact-help" className="mt-1 text-label text-text-secondary">
-          Contoh: 0812-3456-7890 atau nama@email.com
-        </p>
-        {contactError && (
-          <p id="contact-error" className="mt-1 text-label text-danger">
-            {contactError}
-          </p>
-        )}
-      </div>
+      <TextField
+        id="contact"
+        name="contact"
+        type="text"
+        label="Nomor WhatsApp atau email"
+        help="Contoh: 081234567890 atau nama@email.com"
+        error={contactError}
+        required
+        autoCapitalize="none"
+        spellCheck={false}
+        value={contact}
+        onChange={(event) => {
+          setContact(event.target.value);
+          setClientError(undefined);
+          setDismissed(state);
+        }}
+      />
 
-      <div className="mt-4 flex items-start gap-2">
-        <input
-          id="consent"
-          name="consent"
-          type="checkbox"
-          required
-          checked={consent}
-          onChange={(event) => setConsent(event.target.checked)}
-          aria-invalid={consentError ? true : undefined}
-          aria-describedby={consentError ? "consent-error" : undefined}
-          className="mt-1 size-4 shrink-0 accent-primary"
-        />
-        <label htmlFor="consent" className="text-body">
-          Saya setuju kontak ini disimpan dan dipakai untuk menghubungi saya seputar
-          Sistem Manajemen Kos.
-        </label>
-      </div>
-      {consentError && (
-        <p id="consent-error" className="mt-1 text-label text-danger">
-          {consentError}
-        </p>
-      )}
+      <Checkbox
+        id="consent"
+        name="consent"
+        required
+        checked={consent}
+        onChange={(event) => {
+          setConsent(event.target.checked);
+          setDismissed(state);
+        }}
+      >
+        {CONSENT_TEXT}
+      </Checkbox>
 
       {/* Honeypot: hidden from sight, keyboard and screen readers. */}
       <div aria-hidden="true" className="sr-only">
         <label htmlFor="hp_note">Kosongkan field ini</label>
         <input id="hp_note" name="hp_note" type="text" tabIndex={-1} autoComplete="off" />
       </div>
-      <input type="hidden" name="src" />
 
-      {formError && (
-        <p role="alert" className="mt-4 text-label text-danger">
-          {formError}
-        </p>
+      {alertMessage && (
+        <Alert tone="danger" role="alert">
+          {alertMessage}
+        </Alert>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={pending}
-        className="mt-6 rounded-lg bg-action px-6 py-3 text-body font-medium text-on-action hover:bg-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+        block
+        disabled={!consent}
+        loading={pending}
+        aria-describedby={consent ? undefined : "submit-help"}
       >
-        {pending ? "Mengirim…" : "Daftar minat"}
-      </button>
+        {pending ? "Mengirim…" : "Daftar Minat"}
+      </Button>
+      {!consent && (
+        <p id="submit-help" className="text-label text-text-secondary">
+          Centang persetujuan di atas untuk mengaktifkan tombol.
+        </p>
+      )}
     </form>
+  );
+}
+
+function Success() {
+  const panel = useRef<HTMLDivElement>(null);
+  // The form (and the button that had focus) is gone: put focus on the confirmation instead of dropping it on <body>.
+  useEffect(() => panel.current?.focus(), []);
+  return (
+    <div
+      ref={panel}
+      tabIndex={-1}
+      role="status"
+      aria-live="polite"
+      className="flex flex-col items-start gap-3 py-2 focus:outline-none"
+    >
+      <span className="grid size-12 place-items-center rounded-lg bg-success-subtle text-success">
+        <CheckCircle size={24} />
+      </span>
+      <h3 className="text-h2">Terima kasih, kami akan menghubungi kamu</h3>
+      <p className="text-text-secondary">Kabar peluncuran akan dikirim ke kontak yang kamu daftarkan.</p>
+    </div>
   );
 }

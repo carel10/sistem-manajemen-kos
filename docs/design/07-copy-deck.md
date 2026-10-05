@@ -25,7 +25,7 @@ Teks statis lengkap tiap halaman ada di `referensi/html/*.html`. Teks yang **tid
 | Kunci | Teks |
 |---|---|
 | Judul / sub | Masuk ke manaKos / Selamat datang kembali. Kelola kosmu dari satu tempat. |
-| Label | Alamat Email · Kata Sandi · Lupa kata sandi? |
+| Label | Alamat Email · Kata Sandi · Lupa kata sandi? **[Catatan proyek, 5 Okt 2026]** "Lupa kata sandi?" tidak dipasang di v1 (keputusan pemilik proyek, `docs/TASKS.md` 1.1a) |
 | Tombol / loading | Masuk / Memproses… |
 | Toggle sandi | Tampilkan kata sandi / Sembunyikan kata sandi |
 | Error email | Masukkan alamat email. · Format email belum benar, contoh: nama@email.com. |
