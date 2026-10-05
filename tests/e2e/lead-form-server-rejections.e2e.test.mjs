@@ -36,6 +36,28 @@
 // harness does not exercise either. Tracked as an open finding, not just this comment: docs/TASKS.md, 0.4a, "Tindak
 // lanjut ronde 5".
 //
+// Updated (round 6, 5 Okt 2026): CAUSE FOUND by probes kept out of the repo; results in docs/TASKS.md, 0.4a, "Tindak lanjut
+// ronde 5", items 3-7 (90 completed trials: HeadlessChrome 154, Next.js 16.3.6 dev, React 19.2.8, Windows 11). The three
+// lines are a dev-server artifact of replaying the recorded request VERBATIM: next dev's client keeps one debug-channel
+// stream per x-nextjs-request-id and the server pushes that request's debug chunks to the page over the HMR WebSocket,
+// routed by x-nextjs-html-request-id. A replay that reuses both recorded ids makes the server push 2 chunks and a terminator
+// again for a stream that is already closed: 2x "Cannot write to a CLOSED writable stream" + 1x "Cannot close a CLOSED
+// writable stream" in the page console, which next dev forwards to the terminal as "[browser]" lines (node_modules/next/dist/
+// client/dev/debug-channel.js, client/dev/hot-reloader/app/hot-reloader-app.js, server/dev/hot-reloader-turbopack.js).
+// Evidence: 3 lines in 17 of 17 replays with the recorded ids; 0 lines in 25 of 25 replays with both ids removed (13) or
+// replaced by fresh random ones (12), and in 4 of 4 with only one of them replaced. Two concurrent replays: 6 lines with the
+// recorded ids (4 of 4), 0 with fresh ids (6 of 6). The form's own submissions never print them (0 lines in 34 form-driven
+// trials). So the noise is harmless and specific to this harness; giving ask() fresh ids would silence it, but that changes
+// test logic, which this documentation-only round deliberately did not do.
+//
+// Corrected (round 6): the round-5 reading above was right that React queues a second dispatch instead of running it
+// concurrently (the second request started 1-9 ms after the first answered, 10 of 10 trials) and that two real mouse clicks
+// send one request (20 of 20), but "queued" is not "prevented": two form.requestSubmit() calls in one synchronous task sent
+// TWO requests that both reached the insert step (10 of 10), and a queued second dispatch still ran after the first answered
+// with success (4 of 4). That is a separate OPEN finding, not a property of this test: docs/TASKS.md 0.4a, items 4-6. Also
+// corrected: what a replay reuses is the pair of request-id headers of a finished request, not the `next-action` header.
+// Still untested: a real network-level retry of an in-flight request.
+//
 // Run with `npm run test:e2e` (needs Chrome or Edge, and no other `next dev` running for this project).
 import assert from "node:assert/strict";
 import test from "node:test";
