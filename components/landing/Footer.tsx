@@ -4,8 +4,8 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeSwitcher } from "@/components/theme/ThemeSwitcher";
 import { Container } from "@/components/ui/primitives";
 
-// No "Kebijakan Privasi" link yet: the page does not exist and has no task (docs/TASKS.md 0.3b, proposed), so the
-// link would be a dead end. It joins this list when the page is written.
+// No "Kebijakan Privasi" link yet: the page does not exist (docs/TASKS.md 0.3b, waiting for the policy text from the
+// project owner), so the link would be a dead end. It joins this list when the page is written.
 const LINKS = [
   { href: "#fitur", label: "Fitur" },
   { href: "#harga", label: "Harga" },
