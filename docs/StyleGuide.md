@@ -174,13 +174,13 @@ Detail lengkap tiap state ada di `docs/design/02-komponen.md` — ringkasan yang
 
 **Diperbaiki (ronde 6) — struktur section landing sekarang mengikuti urutan final**, bukan deskripsi umum draf sebelumnya. Lihat `docs/PRD.md` §5c untuk detail copy per section, dan `docs/design/03-halaman.md` §A untuk spesifikasi lengkap.
 
-Landing (route `(marketing)`) punya **dua mode** lewat flag `NEXT_PUBLIC_LAUNCHED` (lihat `docs/Architecture.md` §1a):
+Landing (route `(marketing)`) punya **dua mode** lewat flag `NEXT_PUBLIC_LAUNCHED` (lihat `docs/Architecture.md` §1; dibaca di satu tempat, `lib/launch.ts`):
 
 | | Pra-peluncuran (default sekarang) | Peluncuran |
 |---|---|---|
 | CTA utama | "Daftar Minat" → `#daftar` (anchor, band form) | "Mulai Gratis" → `/register` |
 | Tautan "Masuk" di navbar | Tidak ada | Ada |
-| Harga di section Harga | Tidak ditampilkan ("Diumumkan saat Pro dibuka") | Ditampilkan |
+| Harga Pro di section Harga | Tidak ditampilkan ("Diumumkan saat Pro dibuka") | **Sama** — tetap "Diumumkan saat Pro dibuka" selama Pro belum dijual |
 
 Urutan section (bergantian latar `surface`/`background`): Navbar → Hero → Masalah → Cara Kerja (4 langkah bernomor) → Fitur (bento, termasuk 2 mock terkunci badge Pro) → Segmen (2 baris foto+ilustrasi) → Harga (2 kartu) → FAQ (accordion, 1 terbuka default) → Band CTA (form Daftar Minat di mode pra-peluncuran) → Footer (+ ThemeSwitcher penuh).
 

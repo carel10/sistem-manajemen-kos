@@ -9,9 +9,8 @@
  */
 import { useEffect, useId, useSyncExternalStore } from "react";
 
+import { Monitor, Moon, Sun } from "@/components/icons";
 import { applyTheme, readThemePref, subscribeThemePref, type ThemePref } from "@/lib/theme-script";
-
-import { Monitor, Moon, Sun } from "./icons";
 
 const OPTIONS: { value: ThemePref; label: string; Icon: typeof Sun }[] = [
   { value: "light", label: "Terang", Icon: Sun },

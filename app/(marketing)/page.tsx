@@ -1,31 +1,33 @@
 import type { Metadata } from "next";
 
-import { LeadForm } from "./lead-form";
+import { CtaBand } from "@/components/landing/CtaBand";
+import { Faq } from "@/components/landing/Faq";
+import { Features } from "@/components/landing/Features";
+import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Pricing } from "@/components/landing/Pricing";
+import { Problem } from "@/components/landing/Problem";
+import { Segments } from "@/components/landing/Segments";
 
-const PRODUCT_NAME = "Sistem Manajemen Kos";
-
-// UVP from docs/PRD.md §6, still [HIPOTESIS]; the hero splits it at the dash.
+// UVP from docs/PRD.md §6 (still [HIPOTESIS] as a market claim, though the copy itself is final).
+// The title comes from the root layout ("manaKos · Sistem manajemen kos").
 export const metadata: Metadata = {
-  title: PRODUCT_NAME,
   description:
     "Kelola kosmu dari mana saja — pembayaran, kamar, dan maintenance terpantau otomatis, tanpa perlu cek satu-satu setiap hari.",
 };
 
+// Order of the ten sections (docs/StyleGuide.md §7); Navbar and Footer live in the (marketing) layout.
 export default function LandingPage() {
   return (
-    <section
-      aria-labelledby="hero-title"
-      className="mx-auto w-full max-w-3xl px-6 py-16 sm:py-24"
-    >
-      <p className="text-label text-primary">{PRODUCT_NAME}</p>
-      <h1 id="hero-title" className="mt-4 text-display leading-tight text-balance">
-        Kelola kosmu dari mana saja
-      </h1>
-      <p className="mt-4 max-w-xl text-body text-text-secondary">
-        Pembayaran, kamar, dan maintenance terpantau otomatis, tanpa perlu cek
-        satu-satu setiap hari.
-      </p>
-      <LeadForm />
-    </section>
+    <>
+      <Hero />
+      <Problem />
+      <HowItWorks />
+      <Features />
+      <Segments />
+      <Pricing />
+      <Faq />
+      <CtaBand />
+    </>
   );
 }

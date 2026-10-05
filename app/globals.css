@@ -52,6 +52,8 @@
   --text-label: 0.75rem;
   --text-label--line-height: 1rem;
   --text-label--font-weight: 500;
+  /* Eyebrow = the label style in uppercase with 0.04em tracking (StyleGuide §3, "label"). */
+  --tracking-eyebrow: 0.04em;
 
   /* Radius: badge, chip, <mark> (sm); card, button, input, photo, menu, modal (lg). Avatars use rounded-full. */
   --radius-sm: 0.25rem;
@@ -201,6 +203,11 @@
 
   .band :focus-visible {
     outline-color: var(--action);
+  }
+
+  /* A light card inside the dark band (the interest form): lime would be 1.48:1 on white, so it keeps the forest ring. */
+  .band [data-band-card] :focus-visible {
+    outline-color: var(--primary);
   }
 }
 
