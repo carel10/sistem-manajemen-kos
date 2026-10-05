@@ -15,11 +15,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { LEAD_MESSAGES } from "../../lib/leads.ts";
-import { assertProcessEnvWinsOverDotEnv, freePort, launchBrowser, SAFE_ENV, startNextDev } from "./harness.mjs";
+import { assertProcessEnvWinsOverDotEnv, contactTraces, countOf, freePort, launchBrowser, SAFE_ENV, SERVER_LOG, startNextDev } from "./harness.mjs";
 
-const CONTACT = "081200000095"; // fictional
-const INSERT_FAILED_LOG = "submitLead: insert into leads failed";
-const NOT_CONFIGURED_LOG = "is not set";
+// Fictional. Typed WITH separators on purpose: the server normalises it to +6281200000095 before the insert, so the form
+// the visitor typed and the form the server works with differ, and the log check below must cover both (and more).
+const CONTACT = "0812-0000-0095";
 
 const SNAPSHOT = `(() => {
   const form = document.querySelector("#daftar form");
@@ -38,8 +38,6 @@ const SNAPSHOT = `(() => {
     contact: form.querySelector("#contact").value,
   };
 })()`;
-
-const count = (text, needle) => text.split(needle).length - 1;
 
 test("an unreachable database shows the error alert, keeps the form, and never looks like a success", { timeout: 240_000 }, async (t) => {
   const closedPort = await freePort(); // nothing listens on it: the insert fails to connect at once
@@ -76,11 +74,12 @@ test("an unreachable database shows the error alert, keeps the form, and never l
   assert.equal(after.buttonDisabled, false, "the visitor can retry at once");
 
   const logDeadline = Date.now() + 15_000; // the server prints its log lines a moment after it answers
-  while (count(server.logs(), INSERT_FAILED_LOG) < 1 && Date.now() < logDeadline) await new Promise((resolve) => setTimeout(resolve, 200));
+  while (countOf(server.logs(), SERVER_LOG.insertFailed) < 1 && Date.now() < logDeadline) await new Promise((resolve) => setTimeout(resolve, 200));
   const log = server.logs();
-  assert.equal(count(log, INSERT_FAILED_LOG), 1, "one submission -> exactly one insert-failure log line (the real insert path was reached)");
-  assert.equal(count(log, NOT_CONFIGURED_LOG), 0, "this must not be the 'not configured' branch");
-  // The digits without the leading 0 appear in BOTH the typed form (08...) and the stored form (+628...), so a log line
-  // with either one is caught (checking only the typed form missed a leak of the normalised number: found by mutation).
-  assert.equal(log.includes(CONTACT.slice(1)), false, "no personal data (the contact, typed or normalised) may appear in the server log");
+  assert.equal(countOf(log, SERVER_LOG.insertFailed), 1, "one submission -> exactly one insert-failure log line (the real insert path was reached)");
+  assert.equal(countOf(log, SERVER_LOG.notConfigured), 0, "this must not be the 'not configured' branch");
+  // The server normalises the contact before it logs or inserts anything, so a leak can carry a form the visitor never
+  // typed: contactTraces looks for the typed form, the trimmed/lower-cased form and the bare digits (found by mutation:
+  // a needle in the typed form alone let a leak of the normalised number through).
+  assert.deepEqual(contactTraces(log, CONTACT), [], `the contact ${CONTACT} must not appear in the server log: typed, normalised or re-formatted`);
 });

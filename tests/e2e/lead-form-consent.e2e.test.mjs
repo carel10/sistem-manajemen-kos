@@ -18,10 +18,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { LEAD_MESSAGES } from "../../lib/leads.ts";
-import { assertProcessEnvWinsOverDotEnv, launchBrowser, startNextDev } from "./harness.mjs";
+import { assertProcessEnvWinsOverDotEnv, countOf, launchBrowser, SERVER_LOG, startNextDev } from "./harness.mjs";
 
 const CONTACT = "081234567890";
-const NOT_CONFIGURED_LOG = "is not set"; // submitLead: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set
+// The UU PDP consent sentence APPROVED by the owner (docs/TASKS.md 0.4a, option A), written out here on purpose: reading
+// it back from the app's own constant would let an accidental edit of the sentence pass unnoticed.
+const APPROVED_CONSENT_TEXT = "Saya setuju kontak ini disimpan dan dipakai untuk menghubungi saya seputar manaKos.";
 
 // Records every server-action request the page makes: the entries of the FormData that actually leaves the browser.
 const RECORD_ACTION_REQUESTS = `(() => {
@@ -56,12 +58,12 @@ const SNAPSHOT = `(() => {
     busy: submit.getAttribute("aria-busy"),
     alert: (form.querySelector("[role=alert]") || {}).textContent || null,
     contact: form.querySelector("#contact").value,
+    consentLabel: form.querySelector("label[for=consent] span").textContent, // the words the visitor consents to
     requests: window.__actionRequests.length,
   };
 })()`;
 
 const fieldValue = (request, name) => request.fields.find(([key]) => key === name || key.endsWith(`_${name}`))?.[1];
-const count = (text, needle) => text.split(needle).length - 1;
 
 test("consent stays ticked after a server rejection and the retry carries consent=on", { timeout: 240_000 }, async (t) => {
   assertProcessEnvWinsOverDotEnv(); // aborts before anything starts if a .env file could reach a real database
@@ -80,9 +82,10 @@ test("consent stays ticked after a server rejection and the retry carries consen
     { timeout: 90_000, label: "the interest form to hydrate" },
   );
 
-  // 1. Start state: nothing ticked, button locked, helper shown.
+  // 1. Start state: nothing ticked, button locked, helper shown, and the visitor is asked to consent to the approved sentence.
   const start = await page.evaluate(SNAPSHOT);
   assert.deepEqual([start.domChecked, start.reactChecked, start.buttonDisabled, start.helperShown], [false, false, true, true], "start state");
+  assert.equal(start.consentLabel.trim(), APPROVED_CONSENT_TEXT, "the consent label must be the sentence the owner approved");
 
   // 2. A visitor types a valid contact and ticks consent with real input events.
   await page.type("#contact", CONTACT);
@@ -122,6 +125,6 @@ test("consent stays ticked after a server rejection and the retry carries consen
 
   // 7. Safety net: both rejections came from the "not configured" branch, so no database client was ever created.
   const logDeadline = Date.now() + 15_000; // the server prints its log lines a moment after it answers
-  while (count(server.logs(), NOT_CONFIGURED_LOG) < 2 && Date.now() < logDeadline) await new Promise((resolve) => setTimeout(resolve, 200));
-  assert.equal(count(server.logs(), NOT_CONFIGURED_LOG), 2, "both submissions must have been rejected by the not-configured branch");
+  while (countOf(server.logs(), SERVER_LOG.notConfigured) < 2 && Date.now() < logDeadline) await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(countOf(server.logs(), SERVER_LOG.notConfigured), 2, "both submissions must have been rejected by the not-configured branch");
 });

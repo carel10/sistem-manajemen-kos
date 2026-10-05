@@ -51,6 +51,33 @@ export function assertProcessEnvWinsOverDotEnv(env = SAFE_ENV) {
   }
 }
 
+// ---- the log lines the server action prints, defined ONCE -----------------------------------------------------
+// (app/(marketing)/actions.ts). Every e2e file takes its needles from here: a needle copied into several files can go
+// stale in one of them and turn that file's "no such line" assertion into one that can never fail. A file that asserts
+// such an absence must also prove, in the same run, that the needle still matches the real line (a request that DOES
+// print it: the "control" request in the rejection test, the counted lines in the other two).
+export const SERVER_LOG = Object.freeze({
+  notConfigured: "submitLead: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is not set",
+  insertFailed: "submitLead: insert into leads failed",
+});
+
+export const countOf = (text, needle) => text.split(needle).length - 1;
+
+/**
+ * Every way a contact could show up in server output: exactly as typed, trimmed and lower-cased (the normalised email),
+ * and, for a phone number, as its bare digits however they were re-formatted (+62..., 0812 0000 0095, ...).
+ * Returns the list of traces found (empty = no leak). One needle in one form is not enough: the server normalises the
+ * contact before it uses it, so a leak can carry a form the test never typed (found by mutation, 0.4a).
+ */
+export function contactTraces(text, contact) {
+  const traces = [];
+  if (text.includes(contact)) traces.push("as typed");
+  if (text.toLowerCase().includes(contact.trim().toLowerCase())) traces.push("trimmed and lower-cased");
+  const core = contact.replace(/\D/g, "").replace(/^(62|0)/, ""); // the national digits, without 62 or the leading 0
+  if (core.length >= 8 && text.replace(/\D/g, "").includes(core)) traces.push("as bare digits");
+  return traces;
+}
+
 // ---- process helpers -------------------------------------------------------------------------------------------
 
 function killTree(child) {
@@ -108,9 +135,34 @@ export async function startNextDev({ env = SAFE_ENV, readyTimeout = 90_000 } = {
     if (Date.now() > deadline) { killTree(child); throw new Error(`next dev was not ready within ${readyTimeout}ms:\n${output}`); }
     await sleep(250);
   }
+  // `next dev` prints one access-log line per request AFTER everything the request itself logged, for example
+  //   " POST /?src=x&r=honeypot 200 in 24ms (next.js: 6ms, application-code: 18ms)".
+  // A request whose URL carries `r=<marker>` therefore marks the END of its own console output, which lets a test say
+  // "this request printed nothing" without sleeping or guessing how long the pipe takes. The text printed since the
+  // previous marked request is returned, so every line is attributed to the request that produced it.
+  let cursor = 0;
+  async function requestLog(marker, { timeout = 15_000 } = {}) {
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const accessLine = new RegExp(` POST [^\\n]*[?&]r=${escaped}(?:&\\S*)? \\d{3} in [^\\n]*\\n`);
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const match = accessLine.exec(output.slice(cursor));
+      if (match) {
+        const printed = output.slice(cursor, cursor + match.index);
+        cursor += match.index + match[0].length;
+        return printed;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`next dev did not print the access-log line of the request marked r=${marker} within ${timeout}ms (its log format may have changed). Log so far:\n${output.slice(-1500)}`);
+      }
+      await sleep(50);
+    }
+  }
+
   return {
     url,
     logs: () => output,
+    requestLog,
     stop: () => killTree(child),
   };
 }
