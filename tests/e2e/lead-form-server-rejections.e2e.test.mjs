@@ -33,11 +33,11 @@
 // double-click test to confirm this directly could not be run from this session (the device bridge's Linux VM has no
 // Windows-native next/Turbopack build and can't fetch one). NOT ruled out: a network-level retry of the still-open real
 // request (unlike this replay, which only starts after the real request has finished) is a different mechanism this
-// harness does not exercise either. Tracked as an open finding, not just this comment: docs/TASKS.md, 0.4a, "Tindak
-// lanjut ronde 5".
+// harness does not exercise either. Tracked as an open finding, not just this comment: docs/0.4a-tindak-lanjut.md,
+// section "Ronde 5".
 //
-// Updated (round 6, 5 Okt 2026): CAUSE FOUND by probes kept out of the repo; results in docs/TASKS.md, 0.4a, "Tindak lanjut
-// ronde 5", items 3-7 (90 completed trials: HeadlessChrome 154, Next.js 16.3.6 dev, React 19.2.8, Windows 11). The three
+// Updated (round 6, 5 Okt 2026): CAUSE FOUND by probes kept out of the repo; results in docs/0.4a-tindak-lanjut.md,
+// section "Ronde 6", items 3-7 (90 completed trials: HeadlessChrome 154, Next.js 16.3.6 dev, React 19.2.8, Windows 11). The three
 // lines are a dev-server artifact of replaying the recorded request VERBATIM: next dev's client keeps one debug-channel
 // stream per x-nextjs-request-id and the server pushes that request's debug chunks to the page over the HMR WebSocket,
 // routed by x-nextjs-html-request-id. A replay that reuses both recorded ids makes the server push 2 chunks and a terminator
@@ -54,7 +54,7 @@
 // concurrently (the second request started 1-9 ms after the first answered, 10 of 10 trials) and that two real mouse clicks
 // send one request (20 of 20), but "queued" is not "prevented": two form.requestSubmit() calls in one synchronous task sent
 // TWO requests that both reached the insert step (10 of 10), and a queued second dispatch still ran after the first answered
-// with success (4 of 4). That is a separate OPEN finding, not a property of this test: docs/TASKS.md 0.4a, items 4-6. Also
+// with success (4 of 4). That is a separate OPEN finding, not a property of this test: docs/0.4a-tindak-lanjut.md "Ronde 6", items 4-6. Also
 // corrected: what a replay reuses is the pair of request-id headers of a finished request, not the `next-action` header.
 // Still untested: a real network-level retry of an in-flight request.
 //

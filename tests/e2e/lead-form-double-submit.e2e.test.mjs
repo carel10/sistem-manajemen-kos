@@ -1,4 +1,4 @@
-// Regression test for the client-side double-submit guard of the interest form (docs/TASKS.md 0.4a, finding of round 6).
+// Regression test for the client-side double-submit guard of the interest form (docs/0.4a-tindak-lanjut.md, "Ronde 6", items 5-6: finding of round 6).
 //
 // The finding: two submit events in ONE synchronous task (form.requestSubmit() twice) sent TWO requests and both reached the
 // insert step (10 of 10 trials), because `pending` from useActionState is still false inside that task and React's action
@@ -78,7 +78,7 @@ const randomLike = (value) => value
   .replace(/[a-z]/g, () => randomChar("abcdefghijklmnopqrstuvwxyz"))
   .replace(/[A-Z]/g, () => randomChar("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
   .replace(/[0-9]/g, () => randomChar("0123456789"));
-/** The recorded headers with fresh request ids: a replay must not reuse the ids of a finished request (docs/TASKS.md 0.4a, item 3). */
+/** The recorded headers with fresh request ids: a replay must not reuse the ids of a finished request (docs/0.4a-tindak-lanjut.md, "Ronde 6", item 3). */
 const withFreshIds = (headers) => Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, /request-id/i.test(name) ? randomLike(value) : value]));
 
 // One replay inside the page with an abort timer, so a stalled answer is reported instead of hanging the test.
