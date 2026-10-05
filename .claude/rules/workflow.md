@@ -68,7 +68,13 @@ Untuk migration yang mengubah tabel eksisting atau RLS policy, tidak ada cara ot
 
 **Tambahan (revisi alur langganan):** kode yang memakai service role key sebaiknya diisolasi ke satu file/folder yang jelas (misal `lib/supabase-admin.ts`), supaya kalau proyek berkembang, permission rule bisa ditambahkan untuk minta izin setiap kali file itu diedit — sama seperti migration, ini belum bisa di-block otomatis hari ini, tapi mengisolasi lokasinya membuat pengawasan manual jauh lebih mudah daripada kalau service role key dipakai tersebar di banyak file.
 
-## 5. Referensi
+## 5. Sinkronisasi Dokumen, Kebijakan Push, dan Atribusi Commit (Ditambahkan 5 Okt 2026 — sebelumnya hanya di catatan sesi asisten; celah proses yang sama dengan temuan `vector` di `CLAUDE.md`)
+
+- **Sinkronisasi dokumen tiap ronde.** Kalau sebuah ronde revisi mengubah keputusan yang berdampak ke lebih dari satu dokumen (`docs/PRD.md`, `docs/Architecture.md`, `docs/StyleGuide.md`, `docs/TASKS.md`, `CLAUDE.md`), semua dokumen yang terdampak diperbarui di ronde yang sama — bukan satu per satu di ronde-ronde berbeda, yang berisiko satu dokumen tertinggal sebagai referensi usang. Proyek ini sudah mempraktikkannya secara ad-hoc sejak ronde 5-6 (lihat riwayat commit "docs: sinkron dokumen ronde 6/7" dan sejenisnya); bagian ini menuliskannya sebagai aturan eksplisit, bukan memperkenalkan praktik baru. Kalau sebuah dokumen **sengaja** tidak diupdate di ronde yang sama (misal dampaknya belum pasti), itu disebutkan eksplisit di commit message, bukan diam-diam ditunda.
+- **Kebijakan push (klarifikasi 5 Okt 2026 — supaya tidak ditanyakan ulang tiap commit).** Aturan "push ke `main`/`master` wajib minta izin dulu" di §2 dimaksudkan mencegah riwayat WIP (kerja belum tuntas, masih berubah-ubah) menumpuk berantakan di `origin` — **bukan** untuk melarang commit hardening/perbaikan yang sudah bersih dan tuntas sendiri atas tahap yang sudah Selesai dan sudah di-push sebelumnya (contoh: menambah tes regresi atau memperbaiki dokumentasi untuk tahap yang statusnya tidak berubah). Commit semacam itu boleh langsung di-push tanpa menunggu persetujuan eksplisit lagi, selama working tree bersih dan `npm test`/`npm run lint`/`npm run build` (yang relevan untuk perubahannya) lolos sebelum push.
+- **Atribusi commit berbantuan AI.** Setiap commit yang dibuat dengan bantuan asisten AI menyertakan trailer `Co-Authored-By:` yang menyebut model yang membantu, memakai nama model dan konvensi atribusi **sesuai instruksi sesi saat commit itu dibuat** — bukan string yang dibekukan di file ini, karena nama model/versi dan tautan sesi berbeda antar sesi (contoh: commit `2dc9693` memakai "Claude Sonnet 5.5"; sesi lain bisa memakai konvensi lain — keduanya sah untuk sesinya masing-masing, jangan disamakan paksa jadi satu string tetap).
+
+## 6. Referensi
 
 - `CLAUDE.md` — aturan non-negotiable ringkas & pointer dokumen.
 - `docs/TASKS.md` — status task, sumber kebenaran urutan build.

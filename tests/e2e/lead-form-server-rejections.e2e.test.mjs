@@ -22,8 +22,19 @@
 //
 // Noise to expect: replaying a server action from the page makes the dev server print three "[browser] TypeError: Cannot
 // write to a CLOSED writable stream" lines per replay (observed 5 Okt 2026, with an untouched native fetch and with the
-// body unread; the form's own submissions never do it; source not investigated further). They carry no data and match
-// none of the needles, so the assertions ignore them.
+// body unread; the form's own submissions never do it). They carry no data and match none of the needles, so the
+// assertions ignore them.
+//
+// Feasibility check (round 5, 5 Okt 2026): this is very likely specific to HOW this harness replays requests, not to a
+// real double-submit. Button.tsx disables the submit button for the whole `pending` window (`disabled={disabled ||
+// loading}`), and lead-form.tsx dispatches through `startTransition(() => dispatch(formData))` on one `useActionState`
+// hook, so React queues a second real dispatch instead of racing it — neither matches what `ask()` does here (a raw
+// native `fetch()` outside `dispatch`, replaying a request whose own stream is already fully closed). A live same-browser
+// double-click test to confirm this directly could not be run from this session (the device bridge's Linux VM has no
+// Windows-native next/Turbopack build and can't fetch one). NOT ruled out: a network-level retry of the still-open real
+// request (unlike this replay, which only starts after the real request has finished) is a different mechanism this
+// harness does not exercise either. Tracked as an open finding, not just this comment: docs/TASKS.md, 0.4a, "Tindak
+// lanjut ronde 5".
 //
 // Run with `npm run test:e2e` (needs Chrome or Edge, and no other `next dev` running for this project).
 import assert from "node:assert/strict";
