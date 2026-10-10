@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { TextField } from "@/components/ui/TextField";
-import { contactProblem, contactProblemMessage, type LeadFormState } from "@/lib/leads";
+import { contactProblem, contactProblemMessage, LEAD_MESSAGES, type LeadFormState } from "@/lib/leads";
 
 import { submitLead } from "./actions";
 
@@ -30,13 +30,19 @@ type LeadAction = (previous: LeadFormState, formData: FormData) => Promise<LeadF
 export function LeadForm({ action = submitLead }: { action?: LeadAction }) {
   // Double-submit guard. `pending` is still false inside the task that dispatched, so two submit events in ONE task
   // (form.requestSubmit() twice) would both get through a `pending` check, and React's action queue would then run both,
-  // one after the other, and send two requests (docs/TASKS.md 0.4a, round-6 probes). This ref is checked and set
-  // synchronously in handleSubmit and released when the action settles, whatever the outcome.
+  // one after the other, and send two requests (docs/0.4a-tindak-lanjut.md, "Ronde 6", items 4-6). This ref is checked
+  // and set synchronously in handleSubmit and released when the action settles, whatever the outcome.
   const inFlight = useRef(false);
   const guardedAction = useCallback<LeadAction>(
     async (previous, formData) => {
       try {
         return await action(previous, formData);
+      } catch (error) {
+        // The request itself failed (network down, answer lost). Letting the rejection out would reach React, which replaces
+        // the WHOLE page with Next's fallback and the visitor loses the typed contact (docs/0.4a-tindak-lanjut.md, "Ronde 8",
+        // part B). Only the error NAME is logged: a message or the form data could carry the contact.
+        console.error("LeadForm: submit failed", error instanceof Error ? error.name : "unknown");
+        return { status: "error", formError: LEAD_MESSAGES.submitFailed };
       } finally {
         inFlight.current = false;
       }
