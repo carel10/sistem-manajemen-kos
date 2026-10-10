@@ -21,8 +21,8 @@ export async function submitLead(
     return { status: "success" };
   }
 
-  // Re-validated here even though the form checks first: consent (UU PDP) and
-  // the contact format must hold for requests that skip the client entirely.
+  // Re-validated here even though the form checks first: consent (UU PDP) and the contact format must hold for
+  // every request that reaches this action. A direct REST insert with the anon key never passes through it.
   const rawContact = String(formData.get("contact") ?? "");
   const contact = normalizeContact(rawContact);
   const consented = formData.get("consent") === "on";
