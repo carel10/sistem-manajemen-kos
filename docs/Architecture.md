@@ -126,7 +126,7 @@ app/
 **`/pilih-paket` ada di dalam `(needs-property)`, bukan di `(app)` biasa (keputusan A1 = X, 5 Okt 2026):** alasan lengkapnya di §3a — RPC `submit_pro_subscription_request` menolak tenant tanpa properti, dan upload bukti transfer terjadi sebelum RPC dipanggil. Halamannya sendiri tidak membawa kode guard; sub-layout yang menanganinya.
 
 **Urutan & logika redirect (Disederhanakan lagi, 5 Okt 2026 — sebelumnya 2 state dengan `/setup-properti`; sekarang tidak ada redirect berbasis properti di titik masuk sama sekali):**
-1. Sesi aktif di `(auth)/layout.tsx` (user membuka `/login`/`/register` lagi) dan redirect langsung setelah login/register berhasil → selalu `/dashboard`. Tidak ada cek properti di sini.
+1. Sesi aktif di `(auth)/layout.tsx` (user membuka `/login`/`/register` lagi) → redirect ke `/dashboard`; **login** yang berhasil → redirect langsung ke `/dashboard`; **register** yang berhasil → panel sukses ("Akun berhasil dibuat") dengan tombol "Buka Dashboard" ke `/dashboard`, bukan redirect otomatis (Direvisi, 10 Okt 2026 — keputusan pemilik, selaras `docs/design/03-halaman.md` §C). Targetnya selalu `/dashboard`. Tidak ada cek properti di sini.
 2. `/dashboard` tanpa properti → **bukan redirect**: menampilkan state kosong dengan CTA ke `/properti`.
 3. Halaman di `(needs-property)` tanpa properti → redirect ke `/properti`, hanya dari sub-layout (§3a).
 
