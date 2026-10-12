@@ -252,8 +252,17 @@ Klik elemen/menu Pro-locked di dashboard (modul Asset & Maintenance, reminder) m
 -- Trigger ini sudah wajib ada untuk auth.users → profiles (task 1.1); migration 1.1c menggantinya lewat
 -- `create or replace function public.handle_new_user()` dan baris di bawah menambah 2 kolom default.
 -- full_name WAJIB tetap diisi: snippet versi sebelumnya menghilangkannya (bug, ditemukan 5 Okt 2026).
-insert into public.profiles (id, email, full_name, subscription_tier, subscription_status, is_admin)
-values (new.id, new.email, new.raw_user_meta_data ->> 'full_name', 'free', 'active', false);
+-- Q10 (12 Okt 2026): signUp dipanggil dari browser (§2a), jadi metadata disaring TANPA melempar galat — full_name di-trim
+-- (btrim dengan himpunan karakter yang sama dengan trim() JavaScript), dipotong sampai 100 karakter, kosong menjadi NULL.
+-- is_admin tidak disebut: default false. Kolom phone ditambahkan di 1.1d (§4).
+insert into public.profiles (id, email, full_name, subscription_tier, subscription_status)
+values (
+  new.id,
+  new.email,
+  nullif(left(btrim(new.raw_user_meta_data ->> 'full_name', E' \t\n...'), 100), ''),
+  'free',
+  'active'
+);
 ```
 
 **`create or replace function` menghapus atribut yang tidak disebut ulang (Ditambahkan, 5 Okt 2026):** function ini wajib tetap `security definer` **dan** `set search_path = ''` — tulis ulang keduanya di migration 1.1c, lalu verifikasi lewat `pg_proc.prosecdef` dan `pg_proc.proconfig`, bukan diasumsikan (`docs/TASKS.md` 1.1c). Kolom `phone` ditambahkan di migration terpisah (1.1d, §4).
