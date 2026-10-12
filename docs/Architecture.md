@@ -146,6 +146,24 @@ Query "punya properti atau belum" taruh di satu helper function server-side (mis
 
 **Ketergantungan landing page ke backend:** minimal. Landing page hanya butuh satu tabel `leads` (lihat §4) untuk menangkap CTA "daftar minat" — **tidak** butuh skema multi-tenant atau auth untuk bisa dibangun dan di-deploy. **Koreksi (Diperbaiki — kalimat sebelumnya keliru menyebut "tidak butuh RLS" juga):** `leads` **tetap wajib RLS aktif** sejak baris pertama (lihat §4) — yang tidak dibutuhkan hanya skema tenant/auth, bukan RLS itu sendiri. Anon key Supabase publik sejak hari pertama landing page live, jadi RLS `leads` tidak bisa ditunda sampai fondasi aplikasi ada.
 
+## 2a. Autentikasi: tempat pemanggilan dan sesi (Keputusan pemilik proyek, 12 Okt 2026 — Q9)
+
+**Keputusan (pemilik proyek, 12 Okt 2026):** `signUp`, `signInWithPassword`, dan `signOut` dipanggil dari **browser** (`createBrowserClient` dari `@supabase/ssr`), **bukan** dari Server Action. `proxy.ts` hanya menyegarkan sesi; layout `(app)` memakai `getUser()` sebagai guard. Sebelum keputusan ini, dokumen ini dan `docs/PRD.md` tidak menetapkan tempat pemanggilan auth (ditemukan 10 Okt 2026, task 1.1a).
+
+**Alasan, dikutip apa adanya dari keputusan pemilik (label confidence milik pemilik):**
+
+> (1) GoTrue membatasi laju per IP klien; dari Server Action semua pengguna berbagi IP server sehingga bucket 30 per 5 menit terbagi dan satu penyerang dapat mengunci semua pengguna [Medium, inferensi]; (2) meneruskan IP pengguna butuh Sb-Forwarded-For + secret API key, bertentangan dengan aturan CLAUDE.md soal service role; (3) panjang kata sandi ditegakkan konfigurasi Supabase (produksi: dashboard; lokal: config.toml tidak diubah di ronde ini), bukan Server Action.
+
+**Yang teramati di dokumentasi Supabase (halaman Rate Limits, `https://supabase.com/docs/guides/auth/rate-limits`, dibaca 10 Okt 2026):** "By default, Supabase Auth uses the IP address of the client for rate limiting. In certain cases, such as when using server-side frameworks or proxies in front of a project, it may be necessary to forward the end-user IP address to avoid being rate limited based on the address of the server-side client." Meneruskan IP memakai header `Sb-Forwarded-For` "with a secret API key"; "Publishable API keys and legacy anon / service_role API keys are not supported"; fitur itu harus diaktifkan eksplisit di Authentication > Rate Limits. Default per IP: 30 permintaan per 5 menit untuk sign-up/sign-in, 150 untuk token endpoint, 30 untuk verifikasi. Bahwa penyerang tunggal dapat mengunci semua pengguna lewat IP server adalah **inferensi** (belum diukur di proyek ini).
+
+**Konsekuensi (disimpulkan dari keputusan di atas dan dari dokumentasi Next.js yang terpasang; bukan bagian keputusan pemilik):**
+
+- **Penegakan panjang kata sandi** ada di konfigurasi Supabase: produksi diatur di dashboard (`minimum_password_length = 8`, checklist `docs/TASKS.md` 0.5); lokal `supabase/config.toml` tetap 6 dan tidak diubah. Validasi di `lib/validators.ts` hanya umpan balik UI.
+- **Metadata signup dikontrol klien.** Karena panggilannya dari browser, `full_name` dan `phone` di metadata bisa berisi apa saja; trigger `handle_new_user` menyaringnya **tanpa melempar galat** (`full_name` di-trim lalu dipotong sampai 100 karakter, kosong menjadi NULL; `phone` hanya diterima bila lolos format dan normalisasi aturan `lib/leads.ts`, selain itu NULL) — task 1.1c dan 1.1d.
+- **Cookie sesi ditulis dari JavaScript** oleh `createBrowserClient`, sehingga tidak bisa ber-flag `HttpOnly`; token dapat dibaca skrip yang berjalan di halaman. Ini sifat pola ini, bukan temuan baru; mitigasinya (escape keluaran, CSP) belum dirancang.
+- **Otorisasi bukan di proxy.** `proxy.ts` hanya menyegarkan token (`node_modules/next/dist/docs/01-app/02-guides/authentication.md:1033`); keputusan akses ada di layout `(app)` memakai `getUser()` dan, untuk Server Action yang akan ada kelak (CRUD), di dalam tiap action (`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md:249`).
+- **Batas laju.** Setiap pengguna memakai bucket IP-nya sendiri; `Sb-Forwarded-For` tidak dipakai. `GET /auth/v1/user` (dipakai `getUser()`) mungkin ikut bucket sign-up/sign-in [Low confidence, belum diukur] — lihat `CLAUDE.md` "Catatan Lingkungan Dev Lokal".
+
 ## 3. Multi-Tenancy: Row-Level Security (FIX)
 
 **Pendekatan:** row-level dengan kolom `tenant_id` di setiap tabel milik-tenant, ditegakkan lewat Postgres RLS — **bukan** filter manual `WHERE tenant_id = ?` di level query aplikasi.
