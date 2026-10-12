@@ -8,6 +8,7 @@ Dokumen detail ada di file terpisah — baca sesuai kebutuhan tugas, jangan asum
 - `docs/StyleGuide.md` — warna (tema terang + gelap), tipografi, komponen, gap desain (§9).
 - `docs/TASKS.md` — status pengerjaan per task, urutan build.
 - `.claude/rules/workflow.md` — kapan boleh jalan otonom, kapan wajib minta izin, definisi "selesai".
+- `docs/ronde-aturan.md` — aturan baku tiap ronde kerja (label confidence, TDD dan uji mutasi, skrip dan data uji, gerbang commit dan push); ditetapkan pemilik proyek, wajib dipatuhi.
 - `docs/design/` — salinan dokumen paket desain final (disetujui; sumber token/komponen/copy di atas). Paket aslinya `manakos-design-handoff/` **eksternal dan tidak di-commit** — peta repo ↔ paket, penyimpangan, dan koreksi ada di `docs/design/README.md`.
 
 ## Aturan Non-Negotiable (ringkasan — detail di `docs/Architecture.md`)
