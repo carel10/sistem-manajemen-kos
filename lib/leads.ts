@@ -1,6 +1,9 @@
 // Contact rules for the landing interest form (docs/TASKS.md 0.4, 0.4a). THE single source of the rules:
 // the client form (instant feedback), the server action (source of truth) and lib/validators.ts (isEmail/isPhoneID
 // for the login/register forms) all call the functions below. Do not write these regexes anywhere else.
+// The ONE deliberate copy is the SQL function public.normalize_phone_id (migration 1.1d), which the handle_new_user
+// trigger uses to filter the phone in the signup metadata. If the phone rule changes here, change that function with a
+// new migration and run tests/db/phone-parity.mjs (it compares both over one corpus).
 
 export type LeadFormState =
   | { status: "idle" }

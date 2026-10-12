@@ -255,11 +255,14 @@ Klik elemen/menu Pro-locked di dashboard (modul Asset & Maintenance, reminder) m
 -- Q10 (12 Okt 2026): signUp dipanggil dari browser (§2a), jadi metadata disaring TANPA melempar galat — full_name di-trim
 -- (btrim dengan himpunan karakter yang sama dengan trim() JavaScript), dipotong sampai 100 karakter, kosong menjadi NULL.
 -- is_admin tidak disebut: default false. Kolom phone ditambahkan di 1.1d (§4).
-insert into public.profiles (id, email, full_name, subscription_tier, subscription_status)
+-- phone (1.1d, Q10): hanya diterima bila lolos aturan lib/leads.ts normalizePhoneID (diulang di SQL oleh
+-- public.normalize_phone_id, dijaga sama lewat tes paritas); selain itu NULL. Tanpa grant update (phone).
+insert into public.profiles (id, email, full_name, phone, subscription_tier, subscription_status)
 values (
   new.id,
   new.email,
   nullif(left(btrim(new.raw_user_meta_data ->> 'full_name', E' \t\n...'), 100), ''),
+  public.normalize_phone_id(new.raw_user_meta_data ->> 'phone'),
   'free',
   'active'
 );
@@ -515,7 +518,7 @@ erDiagram
 
 **`PRO_INTEREST_SIGNALS` (Baru, 5 Okt 2026 — keputusan pemilik proyek):** menampung klik CTA "Kabari Saya Saat Pro Tersedia" di Modal Paket Pro selama Pro belum dijual (§3a). Tabel tenant-owned standar (`tenant_id` → `profiles.id`, RLS sejak migration pertama, `docs/TASKS.md` 1.14c) **tetapi dengan pola INSERT-only seperti `leads`:** policy hanya `INSERT` untuk `authenticated` dengan `WITH CHECK (tenant_id = auth.uid())`; **tidak ada** `SELECT`/`UPDATE`/`DELETE` untuk tenant — pemilik produk membacanya lewat Supabase Studio. **Bukan** `leads`: `leads` milik landing page pre-auth (tanpa `tenant_id`, diisi `anon`), sedangkan sinyal ini milik tenant yang sudah login. `unique(tenant_id)` **ditunda** (keputusan pemilik proyek, 5 Okt 2026; risiko rendah — satu tenant bisa menghasilkan beberapa baris, hitung `count(distinct tenant_id)` saat membaca).
 
-**`PROFILES.phone` (Baru, 5 Okt 2026 — nullable, migration terpisah 1.1d):** form Daftar di desain final meminta nomor WhatsApp, tetapi kolomnya belum ada di migration 1.1. Dipisah dari 1.1c (default tier) dengan sengaja supaya dua perubahan trigger `handle_new_user` tidak tercampur. Trigger membaca `raw_user_meta_data ->> 'phone'`. Column-level privilege 1.1 tidak berubah: `phone` **tidak** ikut `grant update` ke `authenticated` kecuali diputuskan terpisah.
+**`PROFILES.phone` (Baru, 5 Okt 2026 — nullable, migration terpisah 1.1d):** form Daftar di desain final meminta nomor WhatsApp, tetapi kolomnya belum ada di migration 1.1. Dipisah dari 1.1c (default tier) dengan sengaja supaya dua perubahan trigger `handle_new_user` tidak tercampur. Trigger membaca `raw_user_meta_data ->> 'phone'` dan menyaringnya **tanpa melempar galat** (Q10, 12 Okt 2026): hanya nomor yang lolos aturan `lib/leads.ts` (`normalizePhoneID`) yang disimpan, dalam bentuk `+628…`; selain itu NULL. Aturan itu diulang di SQL oleh `public.normalize_phone_id` (helper internal, EXECUTE dicabut dari `public`, `anon`, dan `authenticated`) dan dijaga sama lewat tes paritas atas satu korpus masukan (`docs/TASKS.md` 1.1d). Column-level privilege 1.1 tidak berubah: `phone` **tidak** ikut `grant update` ke `authenticated` kecuali diputuskan terpisah.
 
 **Kolom dan keputusan yang sengaja ditunda (keputusan pemilik proyek, 5 Okt 2026 — dicatat di sini supaya tidak dikira kelupaan):** (a) `rooms.created_at` — **tidak ada** di migration 1.1b (hanya `properties.created_at`); dibutuhkan metrik Ekspansi (§6), ditambahkan lewat migration terpisah bersama `expenses` (2.7), **setelah** 1.1b dikonfirmasi pemilik (verifikasi RLS `properties`/`rooms` oleh pemilik) — 1.1b tidak disentuh sebelum itu; (b) `payments.paid_at` — metrik Income butuh tanggal bayar (bukan `due_date`), diputuskan **sebelum 1.13**; (c) definisi "kamar terisi" untuk metrik Okupansi (§6), ditunda ke 2.10; (d) `unique(tenant_id)` pada `pro_interest_signals`.
 
