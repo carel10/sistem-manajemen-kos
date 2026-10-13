@@ -21,7 +21,7 @@
 | SDK Supabase | `@supabase/supabase-js`, `@supabase/ssr` | **Ditambahkan (FIX)** — SDK resmi Supabase, sudah tercakup begitu Supabase dipilih sebagai backend, bukan dependency tambahan yang perlu izin terpisah. |
 | Tooling dev (bukan runtime) | Supabase CLI, Docker (untuk Supabase lokal) | **Ditambahkan (FIX)** — dipakai untuk menjalankan Postgres lokal + menjalankan migration/tes RLS sebelum deploy, bukan bagian dari aplikasi yang di-deploy. Tidak menambah dependency di `package.json` produksi. |
 | Font | Inter (via `next/font`) | **Ditambahkan (FIX, ronde 6)** — dari paket desain final (`docs/StyleGuide.md` §3), bobot 400/500/600 di `app/layout.tsx`. Bukan dependency baru yang perlu izin: `next/font` sudah bagian dari Next.js, bukan library tambahan. |
-| Env flag mode landing | `NEXT_PUBLIC_LAUNCHED` (`'true'` \| `'false'`, default `'false'`) | **Ditambahkan (FIX, ronde 6)** — satu-satunya switch untuk dua mode landing page (pra-peluncuran/peluncuran) yang dirancang di paket desain final (`docs/StyleGuide.md` §7, `docs/design/03-halaman.md` §A). `NEXT_PUBLIC_` karena dibaca di client (teks CTA, tampil/sembunyi tautan Masuk) — bukan rahasia, aman public-exposed seperti anon key. Dibaca di satu tempat, `lib/launch.ts` (`IS_LAUNCHED`; tanpa nilai = pra-peluncuran). **Nilainya di-inline saat build** (diverifikasi 5 Okt 2026: `next build` dengan dan tanpa flag menghasilkan HTML statis yang berbeda), jadi mengubahnya di Vercel butuh **redeploy**, bukan sekadar restart — relevan untuk task 0.5. **Jangan diset `'true'` sebelum task 1.1a selesai:** mode peluncuran menautkan `/login`, `/register`, dan `/register?minat=pro`, rute yang belum ada sampai itu (`next build` hari ini hanya memuat `/`). |
+| Env flag mode landing | `NEXT_PUBLIC_LAUNCHED` (`'true'` \| `'false'`, default `'false'`) | **Ditambahkan (FIX, ronde 6)** — satu-satunya switch untuk dua mode landing page (pra-peluncuran/peluncuran) yang dirancang di paket desain final (`docs/StyleGuide.md` §7, `docs/design/03-halaman.md` §A). `NEXT_PUBLIC_` karena dibaca di client (teks CTA, tampil/sembunyi tautan Masuk) — bukan rahasia, aman public-exposed seperti anon key. Dibaca di satu tempat, `lib/launch.ts` (`IS_LAUNCHED`; tanpa nilai = pra-peluncuran). **Nilainya di-inline saat build** (diverifikasi 5 Okt 2026: `next build` dengan dan tanpa flag menghasilkan HTML statis yang berbeda), jadi mengubahnya di Vercel butuh **redeploy**, bukan sekadar restart — relevan untuk task 0.5. **Syarat task 1.1a sudah terpenuhi (Selesai 13 Okt 2026):** mode peluncuran menautkan `/login`, `/register`, dan `/register?minat=pro`; `/login` dan `/register` ada (`next build` memuat `/`, `/login`, `/register`, `/dashboard`) dan `?minat=pro` diabaikan di 1.1a (keputusan Q12). Mengaktifkan flag tetap keputusan pemilik proyek. |
 | Env flag Modal Paket Pro | `NEXT_PUBLIC_PRO_AVAILABLE` (`'true'` \| `'false'`, default `'false'`) | **Ditambahkan (FIX, 5 Okt 2026 — keputusan pemilik proyek)** — switch isi Modal Paket Pro: `'false'` = copy "Kabari Saya" (Pro belum dijual), `'true'` = "Upgrade ke Pro" + CTA ke `/pilih-paket` (§3a). Pola sama seperti `NEXT_PUBLIC_LAUNCHED`; diubah manual oleh pemilik proyek begitu Fase 2 selesai. **Hanya mengatur tampilan, bukan kontrol akses** — RPC upgrade tetap bisa dipanggil (catatan di §3a). |
 | Env dist dir (tooling uji) | `NEXT_DIST_DIR` (default `'.next'`) | **Ditambahkan (FIX, 13 Okt 2026 — keputusan pemilik Q19)** — dibaca `next.config.ts` untuk `distDir`; hanya diset oleh harness e2e (`.next-e2e`) supaya `next dev` uji tidak bertabrakan dengan `next dev` di dist bawaan (kunci `.next/dev/lock`). Tanpa nilai = `.next`: perilaku produk dan build produksi tidak berubah (daftar rute sama sebelum dan sesudah, diverifikasi). Bukan rahasia dan bukan `NEXT_PUBLIC_` (tidak dibaca di client). |
 
@@ -551,24 +551,32 @@ ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat imp
 
 **Peringatan penting soal cara menulis policy gating (Diperbaiki — bug keamanan nyata di versi sebelumnya):** Postgres menggabungkan beberapa policy **PERMISSIVE** (default) dengan **OR**, bukan AND. Contoh sebelumnya di dokumen ini menulis `pro_only_assets` sebagai policy permissive terpisah dari `tenant_isolation` — akibatnya, kalau digabung, seorang user Pro (tenant mana pun) **lolos policy itu berdasarkan `OR`**, sehingga secara tidak sengaja bisa melihat aset **semua tenant**, bukan cuma miliknya. Ini kebocoran data lintas-tenant, bukan cuma bug kecil. Perbaikannya: policy gating fitur **wajib ditulis sebagai `AS RESTRICTIVE`**, yang digabung dengan **AND** terhadap hasil semua policy permissive (termasuk `tenant_isolation` di §3) — jadi baris hanya terlihat kalau **tenant cocok DAN syarat tier terpenuhi**, bukan salah satu saja.
 
-**Pola 1 — batasan kuota** (properti, kamar):
+**Pola 1 — batasan kuota** (properti, kamar) **— [Direvisi 13 Okt 2026, keputusan pemilik proyek Q25: dua lapis; contoh "policy saja" di versi sebelumnya dihapus karena tidak aman terhadap INSERT bersamaan]**
+
+**Kenapa policy saja tidak cukup:** hitungan `count(*)` di `WITH CHECK` dibaca dari snapshot pernyataan dan hanya melihat baris yang sudah commit. Dua `INSERT` bersamaan dari satu tenant Free sama-sama melihat 0 properti dan keduanya lolos (tenant berakhir dengan 2 properti); policy juga tidak melihat baris lain dari `INSERT` multi-baris dalam pernyataan yang sama. Karena itu kuota ditegakkan di dua lapis pada tabel yang sama:
+
+1. **Policy `AS RESTRICTIVE`** — lapis deklaratif: `FOR INSERT` pada `properties` dan `rooms`, serta `FOR UPDATE` pada `rooms` untuk pemindahan `property_id`. Policy ini meng-AND-kan syarat kuota ke `tenant_isolation`, bukan menggantikannya.
+2. **Trigger `BEFORE INSERT`** (dan `BEFORE UPDATE OF property_id` pada `rooms`), per baris: mengambil `pg_advisory_xact_lock` per tenant, lalu **menghitung ulang di dalam kunci** dan menolak bila batasnya terlewati. Kunci menyerialkan keputusan satu tenant sampai transaksinya selesai (commit atau rollback). Fungsi penghitung wajib `VOLATILE`: fungsi `STABLE` memakai snapshot pernyataan pemanggil dan tidak akan melihat commit pemegang kunci sebelumnya (alasan yang sama dengan butir 5 daftar "Skenario race/atomicity tambahan" di §3a).
+
+**Angka kuota ada di SATU fungsi SQL** (`public.tier_quota(tier, resource)`: `properties` = 1 dan `rooms_per_property` = 5 untuk tier `free`, tier lain `NULL` = tanpa batas); policy dan trigger memanggilnya dan tidak menulis angka sendiri. Kelak diganti lookup tabel `plans` (task 1.3) tanpa menyentuh policy dan trigger. **Tier dibaca langsung** dari `profiles` milik tenant pada saat pengecekan, tidak di-cache (bukan klaim JWT, bukan variabel sesi): perubahan tier berlaku untuk `INSERT` berikutnya.
+
+**Kamar dihitung per properti, bukan per tenant** (`docs/PRD.md` §5b: "jumlah kamar per properti"). `property_id` pada `rooms` boleh berubah (1.1b sengaja membolehkan pemindahan antar properti milik sendiri) dan grant tabel Supabase bawaan tidak mencabutnya; hasil pemeriksaan grant dilaporkan di task 1.10. Karena itu kuota juga berlaku untuk `UPDATE` yang mengubah `property_id` ke properti yang sudah penuh; `UPDATE` yang tidak mengubah `property_id` tidak dibatasi kuota.
+
+**Kode error khusus** — dilempar trigger lewat `RAISE EXCEPTION` dengan `ERRCODE` kustom; UI memetakan `code`, bukan teks pesan:
+
+| SQLSTATE | Arti | `message` | `hint` |
+|---|---|---|---|
+| `MK001` | kuota properti tier Free penuh | `quota_exceeded: properties` | `upgrade_to_pro` |
+| `MK002` | kuota kamar per properti tier Free penuh | `quota_exceeded: rooms_per_property` | `upgrade_to_pro` |
+
+Kode ini dipakai Modal Paket Pro (1.14b) dan form properti/kamar (1.10a, 1.11) untuk memilih pesan; teks pesan untuk pengguna belum ada dan butuh keputusan copy dari pemilik proyek. Penolakan oleh policy saja (tanpa melewati trigger) memberi galat RLS standar `42501`.
 
 ```sql
--- policy dasar tenant_isolation (permissive, §3) tetap ada di tabel ini dan tetap berlaku untuk INSERT
--- policy tambahan di bawah ini RESTRICTIVE — jadi meng-AND-kan syarat kuota, bukan menggantikan isolasi tenant
+-- sketsa lapis 1 (sumber kebenaran: migration task 1.10; angka TIDAK ditulis di sini)
 create policy "free_tier_property_limit" on properties
   as restrictive
   for insert
-  with check (
-    (select subscription_tier from profiles where id = auth.uid()) = 'pro'
-    or (
-      select count(*) from properties
-      where tenant_id = (select id from profiles where id = auth.uid())
-    ) < 1
-  );
-
--- pola sama untuk rooms, ganti angka batas & tabel yang dicek — subquery count() WAJIB difilter
--- ke tenant_id milik user sendiri seperti di atas, bukan menghitung seluruh tabel lintas-tenant
+  with check (not public.quota_exceeded('properties', tenant_id));
 ```
 
 **Pola 2 — modul terkunci total** (Asset & Maintenance Management, reminder otomatis):
