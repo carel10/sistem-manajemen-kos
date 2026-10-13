@@ -560,7 +560,7 @@ ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat imp
 
 **Angka kuota ada di SATU fungsi SQL** (`public.tier_quota(tier, resource)`: `properties` = 1 dan `rooms_per_property` = 5 untuk tier `free`, tier lain `NULL` = tanpa batas); policy dan trigger memanggilnya dan tidak menulis angka sendiri. Kelak diganti lookup tabel `plans` (task 1.3) tanpa menyentuh policy dan trigger. **Tier dibaca langsung** dari `profiles` milik tenant pada saat pengecekan, tidak di-cache (bukan klaim JWT, bukan variabel sesi): perubahan tier berlaku untuk `INSERT` berikutnya.
 
-**Kamar dihitung per properti, bukan per tenant** (`docs/PRD.md` §5b: "jumlah kamar per properti"). `property_id` pada `rooms` boleh berubah (1.1b sengaja membolehkan pemindahan antar properti milik sendiri) dan grant tabel Supabase bawaan tidak mencabutnya; hasil pemeriksaan grant dilaporkan di task 1.10. Karena itu kuota juga berlaku untuk `UPDATE` yang mengubah `property_id` ke properti yang sudah penuh; `UPDATE` yang tidak mengubah `property_id` tidak dibatasi kuota.
+**Kamar dihitung per properti, bukan per tenant** (`docs/PRD.md` §5b: "jumlah kamar per properti"). `property_id` pada `rooms` boleh berubah (1.1b sengaja membolehkan pemindahan antar properti milik sendiri) dan grant tabel Supabase bawaan tidak mencabutnya (diperiksa 13 Okt 2026, task 1.10: `authenticated` punya `UPDATE` pada tabel `rooms` dan pada kolom `property_id`, juga `tenant_id`, yang tetap dijaga `tenant_isolation`). Karena itu kuota juga berlaku untuk `UPDATE` yang mengubah `property_id` ke properti yang sudah penuh; `UPDATE` yang tidak mengubah `property_id` tidak dibatasi kuota.
 
 **Kode error khusus** — dilempar trigger lewat `RAISE EXCEPTION` dengan `ERRCODE` kustom; UI memetakan `code`, bukan teks pesan:
 
@@ -569,7 +569,7 @@ ERD detail per kolom (tipe lengkap, constraint, index) disusun terpisah saat imp
 | `MK001` | kuota properti tier Free penuh | `quota_exceeded: properties` | `upgrade_to_pro` |
 | `MK002` | kuota kamar per properti tier Free penuh | `quota_exceeded: rooms_per_property` | `upgrade_to_pro` |
 
-Kode ini dipakai Modal Paket Pro (1.14b) dan form properti/kamar (1.10a, 1.11) untuk memilih pesan; teks pesan untuk pengguna belum ada dan butuh keputusan copy dari pemilik proyek. Penolakan oleh policy saja (tanpa melewati trigger) memberi galat RLS standar `42501`.
+Kode ini dipakai Modal Paket Pro (1.14b) dan form properti/kamar (1.10a, 1.11) untuk memilih pesan; teks pesan untuk pengguna belum ada dan butuh keputusan copy dari pemilik proyek. Penolakan oleh policy saja (tanpa melewati trigger) memberi galat RLS standar `42501`. **Teramati lewat PostgREST (13 Okt 2026, task 1.10):** HTTP 400 dengan field `code` (`MK001` atau `MK002`), `message`, `hint` (`upgrade_to_pro`) dan `details` (`resource=...`). **Implementasi (migration `20261013124757_free_tier_quota.sql`, task 1.10, Berjalan menunggu verifikasi pemilik):** fungsi `tier_quota`, `quota_exceeded`, `enforce_properties_quota`, `enforce_rooms_quota`; trigger `properties_quota_insert`, `rooms_quota_insert`, `rooms_quota_move`; policy `free_tier_property_limit`, `free_tier_room_limit`, `free_tier_room_limit_move`. Teramati: `INSERT` multi-baris dengan dua properti untuk tenant Free ditolak seluruhnya (HTTP 400 `MK001`, 0 baris tersimpan), sedangkan lima kamar dalam satu `INSERT` diterima.
 
 ```sql
 -- sketsa lapis 1 (sumber kebenaran: migration task 1.10; angka TIDAK ditulis di sini)
