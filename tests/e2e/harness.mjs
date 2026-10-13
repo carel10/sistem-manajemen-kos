@@ -20,6 +20,11 @@ import { fileURLToPath } from "node:url";
 export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Q19 (13 Okt 2026): the suites run their own `next dev` on a separate dist dir (next.config.ts reads NEXT_DIST_DIR, default
+// `.next`), so a dev server on the default dist, and its `.next/dev/lock`, no longer stops them. Set before anything is spawned:
+// the children inherit it through `{ ...process.env, ...env }`. A value already in the environment wins.
+process.env.NEXT_DIST_DIR ??= ".next-e2e";
+
 // ---- safety: process.env wins over .env files, checked on a fixture (never the real .env.local) -----------------
 
 export const SAFE_ENV = Object.freeze({

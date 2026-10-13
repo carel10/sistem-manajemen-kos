@@ -34,6 +34,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output of the end-to-end suites' own `next dev` (NEXT_DIST_DIR=.next-e2e, task Q19), the same as `.next/**` above.
+    ".next-e2e/**",
   ]),
 ]);
 
