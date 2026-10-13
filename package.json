@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test lib/leads.test.mjs lib/auth-copy.test.mjs",
+    "test": "node --experimental-strip-types --test lib/leads.test.mjs lib/auth-copy.test.mjs tests/hooks/block-inline-node.test.mjs",
     "test:db:parity": "node --experimental-strip-types tests/db/phone-parity.mjs",
     "test:e2e": "node --experimental-strip-types --test --test-concurrency=1 tests/e2e/lead-form-consent.e2e.test.mjs tests/e2e/lead-form-db-unreachable.e2e.test.mjs tests/e2e/lead-form-server-rejections.e2e.test.mjs tests/e2e/lead-form-double-submit.e2e.test.mjs tests/e2e/lead-form-network-failure.e2e.test.mjs",
     "test:e2e:db": "node --experimental-strip-types --test --test-concurrency=1 tests/e2e/db/auth-flow.e2e.db.test.mjs"
