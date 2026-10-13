@@ -15,24 +15,36 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "className" | "a
   help?: ReactNode;
   /** The error message; its presence marks the field invalid. */
   error?: string;
+  /** Something inside the right edge of the input (the password toggle); it is positioned by this component. */
+  trailing?: ReactNode;
   className?: string;
 };
 
-export function TextField({ id, label, help, error, className = "", ...input }: Props) {
+export function TextField({ id, label, help, error, trailing, className = "", ...input }: Props) {
   const helpId = help ? `${id}-help` : undefined;
   const errorId = error ? `${id}-error` : undefined;
+  const field = (
+    <input
+      id={id}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={[helpId, errorId].filter(Boolean).join(" ") || undefined}
+      className={trailing ? `${INPUT} pr-12` : INPUT}
+      {...input}
+    />
+  );
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       <label htmlFor={id} className="text-label-form text-text-primary">
         {label}
       </label>
-      <input
-        id={id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={[helpId, errorId].filter(Boolean).join(" ") || undefined}
-        className={INPUT}
-        {...input}
-      />
+      {trailing ? (
+        <div className="relative">
+          {field}
+          {trailing}
+        </div>
+      ) : (
+        field
+      )}
       {help && (
         <p id={helpId} className="text-label text-text-secondary">
           {help}

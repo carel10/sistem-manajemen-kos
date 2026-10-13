@@ -291,6 +291,26 @@ export async function launchBrowser() {
       await page.click(selector);
       await cdp.send("Input.insertText", { text });
     },
+    // ---- additions for the database-backed suite (task 1.1a): cookies and a request log, over CDP ----
+    /** Every cookie of the browser, HttpOnly ones included (document.cookie cannot see those). */
+    async cookies() {
+      return (await cdp.send("Network.getAllCookies")).cookies;
+    },
+    /** Sets one cookie through CDP; `cookie` is a Network.CookieParam ({ name, value, url or domain, path, ... }). */
+    async setCookie(cookie) {
+      const { success } = await cdp.send("Network.setCookie", cookie);
+      if (!success) throw new Error(`setCookie was refused for ${cookie.name}`);
+    },
+    async clearCookies() {
+      await cdp.send("Network.clearBrowserCookies");
+    },
+    /** From now on records every request the page makes ({ method, url }, in order); the returned array keeps growing. */
+    async recordRequests() {
+      await cdp.send("Network.enable");
+      const entries = [];
+      cdp.on("Network.requestWillBeSent", (params) => entries.push({ method: params.request.method, url: params.request.url }));
+      return entries;
+    },
   };
 
   return {
