@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/block-inline-node.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-inline-node.mjs\""
           }
         ]
       }

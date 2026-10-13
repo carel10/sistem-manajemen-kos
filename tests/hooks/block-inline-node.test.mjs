@@ -7,7 +7,8 @@
 // The mutation series of the hook refers to these ids.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -22,6 +23,22 @@ function run(tool, command, { raw } = {}) {
   return { status: result.status, stderr: String(result.stderr), stdout: String(result.stdout) };
 }
 const short = (text) => JSON.stringify(text).replace(/\\n/g, "⏎").slice(0, 70);
+
+// Git Bash is the shell Claude Code uses for hook commands on this machine (measured, Q22), so the configured command is run the
+// same way here. Without it (another machine) the tests that need it are skipped with a reason; S1 and S2 still run.
+const BASH = [process.env.MK_TEST_BASH, "C:\\Program Files\\Git\\bin\\bash.exe", "C:\\Program Files (x86)\\Git\\bin\\bash.exe"]
+  .filter(Boolean).find((path) => existsSync(path)) ?? (process.platform === "win32" ? null : "/bin/bash");
+const NEEDS_BASH = { skip: BASH ? false : "Git Bash not found (set MK_TEST_BASH to bash.exe); the hook command is a bash command line" };
+const slashes = (path) => path.replace(/\\/g, "/");
+const SUBFOLDER = join(ROOT, "tests");
+/** Runs a hook command line the way Claude Code does: through bash, CLAUDE_PROJECT_DIR in the environment, tool call JSON on stdin. */
+function viaBash(command, text, { cwd, projectDir }) {
+  return spawnSync(command, {
+    shell: BASH, cwd, encoding: "utf8", timeout: 20_000, windowsHide: true,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: slashes(projectDir) },
+    input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: text } }),
+  });
+}
 
 // ---- must be blocked --------------------------------------------------------------------------------------------------------
 const BLOCKED = [
@@ -122,6 +139,11 @@ test("L3 limitation (false negative): a variable in place of node is not seen", 
 test("L4 limitation (false negative): an EMPTY PowerShell here-string is not a heredoc and is not blocked", () => {
   assert.equal(run("PowerShell", "$x = @'\n'@").status, 0);
 });
+test("L5 limitation (why Q22): a hook command relative to the project root does NOT run from a subfolder, so it fails open", NEEDS_BASH, () => {
+  const result = viaBash("node .claude/hooks/block-inline-node.mjs", 'node -e "x"', { cwd: SUBFOLDER, projectDir: ROOT });
+  assert.notEqual(result.status, 2, "the relative form cannot find the script from tests/, so it does not block");
+  assert.equal(result.status, 1, "node exits 1 because the module is not found (a non-blocking hook error)");
+});
 
 // ---- settings.json -----------------------------------------------------------------------------------------------------------
 const SETTINGS = join(ROOT, ".claude", "settings.json");
@@ -137,7 +159,12 @@ test("S1 settings.json: valid JSON and the permissions.ask block is exactly what
   assert.deepEqual(settings.permissions.ask, ASK_AS_BEFORE);
   assert.deepEqual(Object.keys(settings.permissions), ["ask"], "no other permission list was added");
 });
-test("S2 settings.json: a PreToolUse hook runs the script for Bash and PowerShell only", () => {
+// The command Claude Code runs for the hook (Q22, 13 Okt 2026). MEASURED on this machine (probes of 13 Okt 2026, for the Bash AND the
+// PowerShell tool): hook commands run in Git Bash; CLAUDE_PROJECT_DIR is set (forward slashes) and expanded by that bash; the hook's
+// working directory is the working directory of the tool call, so a path relative to the project root silently fails open from a
+// subfolder. The command therefore names the script through CLAUDE_PROJECT_DIR, quoted (a path may contain a space).
+const HOOK_COMMAND = 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/block-inline-node.mjs"';
+test("S2 settings.json: one PreToolUse hook for Bash and PowerShell only, with the CLAUDE_PROJECT_DIR command", () => {
   const settings = JSON.parse(readFileSync(SETTINGS, "utf8"));
   const entries = settings.hooks?.PreToolUse ?? [];
   assert.equal(entries.length, 1, "exactly one PreToolUse entry");
@@ -147,16 +174,31 @@ test("S2 settings.json: a PreToolUse hook runs the script for Bash and PowerShel
   for (const tool of ["Write", "Edit", "Read", "Grep", "Glob"]) assert.ok(!matcher.test(tool), `the matcher does not cover ${tool}`);
   assert.equal(entry.hooks.length, 1);
   assert.equal(entry.hooks[0].type, "command");
-  assert.match(entry.hooks[0].command, /\.claude\/hooks\/block-inline-node\.mjs/);
+  assert.equal(entry.hooks[0].command, HOOK_COMMAND);
   assert.ok(existsSync(HOOK), "the script the command points to exists");
 });
-test("S3 settings.json: the configured command, run from the project root with a shell, blocks and allows", () => {
-  const settings = JSON.parse(readFileSync(SETTINGS, "utf8"));
-  const command = settings.hooks.PreToolUse[0].hooks[0].command;
-  const call = (text) => spawnSync(command, {
-    cwd: ROOT, shell: true, encoding: "utf8", timeout: 20_000, windowsHide: true,
-    input: JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: text } }),
-  });
-  assert.equal(call('node -e "x"').status, 2);
-  assert.equal(call("node script.mjs").status, 0);
+
+test("S3 settings.json: the configured command, run from the project root, blocks and allows", NEEDS_BASH, () => {
+  const command = JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.PreToolUse[0].hooks[0].command;
+  assert.equal(viaBash(command, 'node -e "x"', { cwd: ROOT, projectDir: ROOT }).status, 2);
+  assert.equal(viaBash(command, "node script.mjs", { cwd: ROOT, projectDir: ROOT }).status, 0);
+});
+test("S4 settings.json (Q22): the configured command, run from a SUBFOLDER (tests/), still blocks and allows", NEEDS_BASH, () => {
+  const command = JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.PreToolUse[0].hooks[0].command;
+  const blocked = viaBash(command, 'node -e "x"', { cwd: SUBFOLDER, projectDir: ROOT });
+  assert.equal(blocked.status, 2, `blocked from tests/: exit ${blocked.status}; stderr: ${String(blocked.stderr).slice(0, 160)}`);
+  assert.match(String(blocked.stderr), /DIBLOKIR/);
+  assert.equal(viaBash(command, "node script.mjs", { cwd: SUBFOLDER, projectDir: ROOT }).status, 0);
+});
+test("S5 settings.json (Q22): a project directory whose name contains a space is handled (the variable is quoted)", NEEDS_BASH, () => {
+  const dir = mkdtempSync(join(tmpdir(), "mk hook dir "));
+  try {
+    mkdirSync(join(dir, ".claude", "hooks"), { recursive: true });
+    copyFileSync(HOOK, join(dir, ".claude", "hooks", "block-inline-node.mjs"));
+    const command = JSON.parse(readFileSync(SETTINGS, "utf8")).hooks.PreToolUse[0].hooks[0].command;
+    const blocked = viaBash(command, 'node -e "x"', { cwd: SUBFOLDER, projectDir: dir });
+    assert.equal(blocked.status, 2, `blocked with a space in the project path: exit ${blocked.status}; stderr: ${String(blocked.stderr).slice(0, 160)}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
