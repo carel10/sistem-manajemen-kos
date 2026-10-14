@@ -1,0 +1,5 @@
+# Byte-identical copies of the verification scripts (docs/TASKS.md 1.10e, tests/db/verify/README.md).
+# No end-of-line conversion at all, so the SHA-256 recorded for these files holds on every checkout, including a Windows clone with
+# core.autocrlf=true (which would otherwise rewrite them with CRLF and change the hash). Only these paths are affected.
+tests/db/verify/*.mjs -text
+tests/ronde16/scripts/*.mjs -text
